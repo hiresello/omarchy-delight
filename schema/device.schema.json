@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/hiresello/omarchy-delight/schema/device.schema.json",
+  "title": "Devices (delight-<id> devices --json)",
+  "type": "array",
+  "items": { "$ref": "#/$defs/device" },
+  "$defs": {
+    "device": {
+      "type": "object",
+      "required": ["id", "name", "kind", "transport", "connected"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string" },
+        "kind": { "enum": ["phone", "tablet", "computer", "headphones"] },
+        "transport": { "type": "string", "minLength": 1 },
+        "connected": { "type": "boolean" },
+        "rssi": { "type": ["integer", "null"] },
+        "mac": { "type": ["string", "null"], "pattern": "^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$" },
+        "module": { "type": "string", "description": "Added by `delight devices`." }
+      }
+    }
+  }
+}

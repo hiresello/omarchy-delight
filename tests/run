@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# Run every test file and summarize. Usage: tests/run [file...]
+
+set -uo pipefail
+
+ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+
+if (($# > 0)); then
+  files=("$@")
+else
+  mapfile -t files < <(find "$ROOT/tests" "$ROOT/modules" -path "$ROOT/tests/lib" -prune -o -path '*/tests/*' -name '*.sh' -type f -print 2>/dev/null | sort)
+fi
+
+failed=()
+for file in "${files[@]}"; do
+  echo "# ${file#"$ROOT"/}"
+  if ! bash "$file"; then
+    failed+=("${file#"$ROOT"/}")
+  fi
+done
+
+if ((${#failed[@]} > 0)); then
+  printf '# FAILED: %s\n' "${failed[@]}"
+  exit 1
+fi
+echo "# all ${#files[@]} test files passed"

@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "id": "example",
+  "name": "Example",
+  "icon": "󰀵",
+  "description": "Template module. Copy with: delight dev new-module <id>",
+  "packages": { "repo": [], "aur": [] },
+  "units": [],
+  "firewall": [],
+  "capabilities": [],
+  "provides": { "shareTargets": false, "devices": false },
+  "plugin": null,
+  "menu": [
+    { "id": "toggle", "label": "Toggle Example", "icon": "󰀵", "action": "delight example toggle" }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/hiresello/omarchy-delight/schema/config.schema.json",
+  "title": "Delight config (~/.config/omarchy-delight/config.json)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "modules"],
+  "properties": {
+    "schema": { "const": 1 },
+    "modules": {
+      "type": "object",
+      "description": "One key per module id. Each module owns only its own key.",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9-]*$" },
+      "additionalProperties": {
+        "type": "object",
+        "properties": { "enabled": { "type": "boolean" } }
+      }
+    }
+  }
+}

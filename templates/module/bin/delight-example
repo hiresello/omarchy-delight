@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# Module entry point. The id comes from this file's name (delight-<id>).
+# Override any verb by defining module_<verb>; the defaults live in
+# lib/delight/module.sh. Optional verbs: pair, open, share-targets --json,
+# send <target> <paths...>, devices --json.
+
+set -euo pipefail
+
+DELIGHT_ROOT=$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../../.." && pwd)
+# shellcheck source=../../../lib/delight/delight.sh
+source "$DELIGHT_ROOT/lib/delight/delight.sh"
+
+DELIGHT_MODULE_ID=$(basename -- "${BASH_SOURCE[0]}")
+DELIGHT_MODULE_ID=${DELIGHT_MODULE_ID#delight-}
+
+# Exit 0 ok, 1 fixable, 2 unsupported hardware/compositor, 3 needs user action.
+module_doctor() {
+  delight_module_default_doctor
+}
+
+delight_module_main "$@"

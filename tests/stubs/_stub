@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# Shared stub: log argv, emulate just enough behaviour for tests.
+name=$(basename -- "$0")
+printf '%s %s\n' "$name" "$*" >>"${DELIGHT_STUB_LOG:-/dev/null}"
+state=${DELIGHT_STUB_STATE:-/tmp}
+
+case "$name" in
+  sudo) exec "$@" ;;
+  pacman)
+    [[ ${1:-} == "-Q" ]] && {
+      [[ -f $state/pkg-${!#} ]]
+      exit
+    }
+    exit 0
+    ;;
+  systemctl)
+    args=("$@")
+    unit=${args[-1]}
+    case " $* " in
+      *" is-enabled "*) [[ -f $state/unit-$unit ]] ;;
+      *" enable "*) touch "$state/unit-$unit" ;;
+      *" disable "*) rm -f "$state/unit-$unit" ;;
+    esac
+    exit
+    ;;
+  omarchy)
+    if [[ ${1:-} == "plugin" ]]; then
+      case "${2:-}" in
+        enable) touch "$state/plugin-$3" ;;
+        disable) rm -f "$state/plugin-$3" ;;
+        list)
+          for f in "$state"/plugin-*; do
+            [[ -f $f ]] && printf '%s\tenabled\n' "${f##*/plugin-}"
+          done
+          ;;
+      esac
+    fi
+    exit 0
+    ;;
+esac
+exit 0

@@ -1,0 +1,99 @@
+#!/bin/bash
+
+# Contract test for one module: tests/contract/check-module <repo-root> <id>
+# Runs in a sandbox with system commands stubbed. Emits TAP.
+
+# shellcheck source=../lib/tap.sh
+source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/tap.sh"
+
+ROOT="$1"
+ID="$2"
+DIR="$ROOT/modules/$ID"
+BIN="$DIR/bin/delight-$ID"
+SCHEMA="$DELIGHT_TEST_REPO/schema"
+
+sandbox
+
+status_json() {
+  "$BIN" status --json
+}
+
+status_state() {
+  status_json | jq -r .state
+}
+
+ok "$ID: module.json matches schema" schema_valid "$SCHEMA/module.schema.json" "$DIR/module.json"
+is "$ID: module.json id matches directory" "$(jq -r .id "$DIR/module.json")" "$ID"
+ok "$ID: bin/delight-$ID is executable" test -x "$BIN"
+if [[ -f $DIR/defaults.json ]]; then
+  ok "$ID: defaults.json is an object" jq -e 'type == "object"' "$DIR/defaults.json"
+fi
+
+while IFS= read -r unit; do
+  [[ -n $unit ]] || continue
+  ok "$ID: unit $unit exists" test -f "$DIR/systemd/$unit"
+  ok "$ID: unit $unit is PartOf=delight.target" grep -qx 'PartOf=delight.target' "$DIR/systemd/$unit"
+  ok "$ID: unit $unit is WantedBy=delight.target" grep -qx 'WantedBy=delight.target' "$DIR/systemd/$unit"
+done < <(jq -r '.units[]' "$DIR/module.json")
+
+plugin=$(jq -r '.plugin // empty' "$DIR/module.json")
+if [[ -n $plugin ]]; then
+  ok "$ID: plugin directory has manifest.json" test -f "$DIR/$plugin/manifest.json"
+  is "$ID: plugin id is namespaced" "$(jq -r '.id | startswith("delight.")' "$DIR/$plugin/manifest.json")" "true"
+fi
+
+others=$(printf '%s\n' "$ROOT"/modules/*/ | xargs -n1 basename | grep -vx -- "$ID" | paste -sd'|' -)
+if [[ -n $others ]]; then
+  not_ok "$ID: does not reference other modules' files" grep -rEq "modules/($others)/" "$DIR"
+fi
+
+# Before install.
+before=$(status_json)
+ok "$ID: status --json exits 0 before install" status_json
+ok "$ID: status --json matches schema before install" schema_valid "$SCHEMA/status.schema.json" <(printf '%s' "$before")
+is "$ID: status id" "$(jq -r .id <<<"$before")" "$ID"
+ok "$ID: status (human) exits 0" "$BIN" status
+ok "$ID: help exits 0" "$BIN" --help
+not_ok "$ID: unknown verb fails" "$BIN" no-such-verb
+
+# Dry-run install must not touch HOME.
+before_hash=$(tree_hash "$HOME" "$XDG_RUNTIME_DIR")
+dry=$(DELIGHT_DRY_RUN=1 "$BIN" install 2>&1)
+ok "$ID: dry-run install exits 0" test $? -eq 0
+is "$ID: dry-run install leaves HOME untouched" "$(tree_hash "$HOME" "$XDG_RUNTIME_DIR")" "$before_hash"
+[[ -n $dry ]] && true
+
+ok "$ID: install" "$BIN" install
+ok "$ID: install is idempotent" "$BIN" install
+ok "$ID: status after install matches schema" schema_valid "$SCHEMA/status.schema.json" <(status_json)
+ok "$ID: status file written" test -f "$XDG_RUNTIME_DIR/omarchy-delight/status/$ID.json"
+ok "$ID: status file matches schema" schema_valid "$SCHEMA/status.schema.json" "$XDG_RUNTIME_DIR/omarchy-delight/status/$ID.json"
+
+state=$(status_state)
+if [[ $state != "unsupported" ]]; then
+  ok "$ID: enable" "$BIN" enable
+  is "$ID: enabled state" "$(status_state)" "on"
+  ok "$ID: toggle" "$BIN" toggle
+  is "$ID: toggled state" "$(status_state)" "off"
+  ok "$ID: disable is idempotent" "$BIN" disable
+fi
+
+"$BIN" doctor >/dev/null 2>&1
+rc=$?
+ok "$ID: doctor exits 0..3 (got $rc)" test "$rc" -ge 0 -a "$rc" -le 3
+
+for provider in shareTargets:share-targets:share-target devices:devices:device; do
+  IFS=: read -r flag verb schema <<<"$provider"
+  if [[ $(jq -r ".provides.$flag" "$DIR/module.json") == "true" ]]; then
+    ok "$ID: $verb --json matches schema" schema_valid "$SCHEMA/$schema.schema.json" <("$BIN" "$verb" --json)
+  fi
+done
+
+ok "$ID: uninstall" "$BIN" uninstall
+ok "$ID: uninstall is idempotent" "$BIN" uninstall
+not_ok "$ID: no state left" test -e "$HOME/.local/state/omarchy-delight/$ID"
+not_ok "$ID: no status file left" test -e "$XDG_RUNTIME_DIR/omarchy-delight/status/$ID.json"
+is "$ID: no config key left" "$(jq -r --arg id "$ID" '.modules[$id] // "none"' "$HOME/.config/omarchy-delight/config.json" 2>/dev/null || echo none)" "none"
+ok "$ID: status --json still exits 0" status_json
+
+done_testing

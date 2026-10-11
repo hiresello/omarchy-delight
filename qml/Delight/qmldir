@@ -1,0 +1,4 @@
+module Delight
+singleton Tokens 1.0 Tokens.qml
+Tile 1.0 Tile.qml
+Sheet 1.0 Sheet.qml

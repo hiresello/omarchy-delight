@@ -1,0 +1,14 @@
+{
+  "share": ["modules/share/**"],
+  "phone": ["modules/phone/**"],
+  "input": ["modules/input/**"],
+  "airplay": ["modules/airplay/**"],
+  "sync": ["modules/sync/**"],
+  "camera": ["modules/camera/**"],
+  "sidecar": ["modules/sidecar/**"],
+  "hotspot": ["modules/hotspot/**"],
+  "ui": ["plugins/control-center/**", "qml/Delight/**", "docs/design.md"],
+  "vm": ["vm/**", "docs/vm.md", ".github/workflows/vm.yml"],
+  "research": ["research/**"],
+  "integration": ["tests/e2e/**", "docs/manual/**", "CHANGELOG.md"]
+}

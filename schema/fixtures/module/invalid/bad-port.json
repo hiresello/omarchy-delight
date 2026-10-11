@@ -1,0 +1,1 @@
+{"schema":1,"id":"example","name":"Example","icon":"","description":"","packages":{"repo":[],"aur":[]},"units":[],"firewall":[{"proto":"tcp","ports":"any"}],"capabilities":[],"provides":{"shareTargets":false,"devices":false},"plugin":null,"menu":[]}

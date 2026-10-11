@@ -1,0 +1,8 @@
+[Unit]
+Description=Omarchy Delight services
+Documentation=https://github.com/hiresello/omarchy-delight
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Install]
+WantedBy=graphical-session.target

@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install tools
+        run: |
+          pacman -Syu --noconfirm --needed bash jq git shellcheck shfmt qt6-declarative quickshell \
+            python python-jsonschema util-linux diffutils findutils sudo
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Trust checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Fetch Omarchy
+        run: git clone --depth 1 https://github.com/omacom/omarchy.git /tmp/omarchy
+      - name: Shell lint
+        run: ci/lint-shell.sh
+      - name: QML lint
+        run: ci/lint-qml.sh /tmp/omarchy
+      - name: JSON schemas
+        run: ci/validate-json.py
+      - name: Omarchy plugin validation
+        run: ci/validate-plugins.sh /tmp/omarchy
+      - name: Tests
+        run: |
+          useradd -m tester
+          chown -R tester "$GITHUB_WORKSPACE"
+          sudo -u tester env PATH="$PATH" tests/run
+      - name: Ownership
+        if: github.event_name == 'pull_request'
+        env:
+          BRANCH: ${{ github.head_ref }}
+          BASE: ${{ github.base_ref }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: git diff --name-only "origin/$BASE...HEAD" | ci/check-ownership.sh "$BRANCH" "$LABELS"

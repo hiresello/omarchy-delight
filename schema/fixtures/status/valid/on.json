@@ -1,0 +1,1 @@
+{"schema":1,"id":"example","state":"on","title":"Example","subtitle":"On","icon":"","toggle":true,"actions":[{"label":"Open","command":["delight","example","open"]}],"devices":[{"id":"aa","name":"Phone","kind":"phone","transport":"bluetooth","connected":true,"rssi":-60,"mac":"AA:BB:CC:DD:EE:FF"}],"reason":null,"updated":"2026-10-11T00:00:00Z"}

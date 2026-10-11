@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/hiresello/omarchy-delight/schema/module.schema.json",
+  "title": "Delight module manifest (modules/<id>/module.json)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "id", "name", "icon", "description", "packages", "units", "firewall", "capabilities", "provides", "plugin", "menu"],
+  "properties": {
+    "schema": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "name": { "type": "string", "minLength": 1 },
+    "icon": { "type": "string" },
+    "description": { "type": "string" },
+    "packages": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repo", "aur"],
+      "properties": {
+        "repo": { "$ref": "#/$defs/packageList" },
+        "aur": { "$ref": "#/$defs/packageList" }
+      }
+    },
+    "units": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^delight-[a-z][a-z0-9-]*\\.(service|timer|socket|path)$" }
+    },
+    "firewall": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["proto", "ports"],
+        "properties": {
+          "proto": { "enum": ["tcp", "udp"] },
+          "ports": { "type": "string", "pattern": "^[0-9]{1,5}(:[0-9]{1,5})?$" },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "enum": ["bluetooth", "wifi", "wifi-monitor", "network", "hyprland", "portal", "camera", "audio", "kernel-module", "usb"] }
+    },
+    "provides": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["shareTargets", "devices"],
+      "properties": {
+        "shareTargets": { "type": "boolean" },
+        "devices": { "type": "boolean" }
+      }
+    },
+    "plugin": {
+      "description": "Path (relative to the module) of an Omarchy shell plugin directory, or null.",
+      "type": ["string", "null"],
+      "pattern": "^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$"
+    },
+    "menu": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "label", "action"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "label": { "type": "string", "minLength": 1 },
+          "icon": { "type": "string" },
+          "action": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "hooks": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "enum": ["theme-set"] }
+    }
+  },
+  "$defs": {
+    "packageList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z0-9@._+-]+$" }
+    }
+  }
+}

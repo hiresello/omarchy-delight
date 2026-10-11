@@ -1,0 +1,164 @@
+#!/bin/bash
+
+# delight: dispatcher for Omarchy Delight modules. See docs/contracts.md.
+
+set -euo pipefail
+
+DELIGHT_ROOT=$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/.." && pwd)
+# shellcheck source=lib/delight/delight.sh
+source "$DELIGHT_ROOT/lib/delight/delight.sh"
+
+usage() {
+  cat <<'USAGE'
+Usage: delight <command>
+
+  list                              modules and whether they are installed
+  status [--json]                   status of installed modules
+  doctor                            run every installed module's doctor
+  <id> <verb> [args...]             run a module verb (install, enable, toggle, ...)
+  config get <id>.<key>             read a config value
+  config set <id>.<key> <value>     write a config value (JSON or string)
+  share-targets --json              share targets from all modules
+  devices --json                    devices from all modules
+  ui summon <plugin-id> [json]      open a Delight panel
+  notify <id> <title> <body>        send a notification
+  sync                              regenerate Hyprland, menu and hook files
+  dev new-module <id>               scaffold modules/<id> from templates/module
+USAGE
+}
+
+module_bin() {
+  printf '%s/modules/%s/bin/delight-%s\n' "$DELIGHT_ROOT" "$1" "$1"
+}
+
+require_module() {
+  delight_module_exists "$1" || delight_die "unknown module '$1' (see: delight list)" 64
+}
+
+cmd_list() {
+  local id
+  while IFS= read -r id; do
+    jq -r --arg installed "$(delight_is_installed "$id" && echo installed || echo -)" \
+      '"\(.id)\t\($installed)\t\(.name)"' "$DELIGHT_MODULES_DIR/$id/module.json"
+  done < <(delight_modules)
+}
+
+cmd_status() {
+  local id json all='[]'
+  while IFS= read -r id; do
+    json=$("$(module_bin "$id")" status --json 2>/dev/null) || true
+    jq -e 'type == "object"' <<<"$json" >/dev/null 2>&1 \
+      || json=$(delight_status_json --id "$id" --state error --title "$id" --reason "status --json returned invalid JSON")
+    all=$(jq -c --argjson s "$json" '. + [$s]' <<<"$all")
+  done < <(delight_installed_modules)
+  if [[ ${1:-} == "--json" ]]; then
+    jq -c . <<<"$all"
+  else
+    jq -r '.[] | "\(.id)\t\(.state)\t\(.subtitle)\(if .reason then " (" + .reason + ")" else "" end)"' <<<"$all"
+  fi
+}
+
+cmd_doctor() {
+  local id rc worst=0
+  while IFS= read -r id; do
+    echo "== $id"
+    rc=0
+    "$(module_bin "$id")" doctor || rc=$?
+    ((rc > worst)) && worst=$rc
+  done < <(delight_installed_modules)
+  return "$worst"
+}
+
+# Merge `<verb> --json` arrays from every installed module that provides <flag>.
+collect() {
+  local verb="$1" flag="$2" id out all='[]'
+  while IFS= read -r id; do
+    [[ $(delight_module_field "$id" ".provides.$flag // false") == "true" ]] || continue
+    out=$("$(module_bin "$id")" "$verb" --json 2>/dev/null) || continue
+    jq -e 'type == "array"' <<<"$out" >/dev/null 2>&1 || continue
+    all=$(jq -c --arg m "$id" --argjson o "$out" '. + ($o | map(. + {module: $m}))' <<<"$all")
+  done < <(delight_installed_modules)
+  jq -c . <<<"$all"
+}
+
+cmd_config() {
+  local op="${1:-}" path="${2:-}" id key
+  [[ $path == *.* ]] || delight_die "usage: delight config get|set <id>.<key> [value]" 64
+  id=${path%%.*}
+  key=${path#*.}
+  delight_valid_id "$id" || delight_die "invalid module id '$id'" 64
+  case "$op" in
+    get) delight_config_get "$id" "$key" ;;
+    set)
+      (($# >= 3)) || delight_die "usage: delight config set <id>.<key> <value>" 64
+      delight_config_set "$id" "$key" "$3"
+      ;;
+    *) delight_die "usage: delight config get|set <id>.<key> [value]" 64 ;;
+  esac
+}
+
+cmd_ui() {
+  [[ ${1:-} == "summon" && -n ${2:-} ]] || delight_die "usage: delight ui summon <plugin-id> [json]" 64
+  [[ $2 == delight.* ]] || delight_die "plugin id must start with delight." 64
+  delight_has_cmd omarchy-shell || delight_die "omarchy-shell is not available"
+  delight_run omarchy-shell shell summon "$2" "${3:-{\}}"
+}
+
+cmd_hook() {
+  local id
+  case "${1:-}" in
+    theme-set)
+      shift
+      while IFS= read -r id; do
+        if delight_module_field "$id" '.hooks // [] | index("theme-set")' | grep -qv null; then
+          "$(module_bin "$id")" theme-set "$@" || delight_warn "$id: theme-set hook failed"
+        fi
+      done < <(delight_installed_modules)
+      ;;
+    *) delight_die "unknown hook '${1:-}'" 64 ;;
+  esac
+}
+
+cmd_dev() {
+  local id="${2:-}" dest file
+  [[ ${1:-} == "new-module" && -n $id ]] || delight_die "usage: delight dev new-module <id>" 64
+  delight_valid_id "$id" || delight_die "module id must match ^[a-z][a-z0-9-]*$" 64
+  dest="$DELIGHT_ROOT/modules/$id"
+  [[ ! -e $dest ]] || delight_die "$dest already exists"
+  cp -r -- "$DELIGHT_ROOT/templates/module" "$dest"
+  while IFS= read -r -d '' file; do
+    sed -i "s/example/$id/g; s/Example/${id^}/g" "$file"
+    if [[ $(basename -- "$file") == *example* ]]; then
+      mv -- "$file" "$(dirname -- "$file")/$(basename -- "$file" | sed "s/example/$id/g")"
+    fi
+  done < <(find "$dest" -depth -type f -print0)
+  echo "created modules/$id"
+}
+
+main() {
+  local cmd="${1:-}"
+  shift || true
+  case "$cmd" in
+    list) cmd_list ;;
+    status) cmd_status "$@" ;;
+    doctor) cmd_doctor ;;
+    config) cmd_config "$@" ;;
+    share-targets) collect share-targets shareTargets ;;
+    devices) collect devices devices ;;
+    ui) cmd_ui "$@" ;;
+    notify)
+      (($# >= 2)) || delight_die "usage: delight notify <id> <title> <body>" 64
+      delight_notify "$1" "$2" "${3:-}"
+      ;;
+    sync) delight_touchpoints_sync ;;
+    hook) cmd_hook "$@" ;;
+    dev) cmd_dev "$@" ;;
+    "" | help | -h | --help) usage ;;
+    *)
+      require_module "$cmd"
+      exec "$(module_bin "$cmd")" "$@"
+      ;;
+  esac
+}
+
+main "$@"

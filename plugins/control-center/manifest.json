@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "delight.control-center",
+  "name": "Delight Control Center",
+  "version": "0.1.0",
+  "description": "One tile per Omarchy Delight module.",
+  "kinds": [
+    "bar-widget",
+    "panel"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml",
+    "panel": "ControlCenterPanel.qml"
+  }
+}
