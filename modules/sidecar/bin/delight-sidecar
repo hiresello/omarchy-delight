@@ -12,6 +12,7 @@ source "$DELIGHT_ROOT/lib/delight/delight.sh"
 # shellcheck source=../lib/sidecar.sh
 source "$DELIGHT_ROOT/modules/sidecar/lib/sidecar.sh"
 
+# shellcheck disable=SC2034 # read by lib/delight/module.sh
 DELIGHT_MODULE_ID=sidecar
 SIDECAR_UNIT="delight-sidecar.service"
 SIDECAR_RUN="$DELIGHT_RUNTIME_DIR/sidecar"

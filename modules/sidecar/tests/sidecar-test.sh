@@ -171,7 +171,8 @@ mv "$HOME/.local/state/omarchy-delight/sidecar/sunshine-credentials" "$SANDBOX/c
 "$BIN" doctor >/dev/null 2>&1
 is "doctor needs user action without credentials" "$?" "3"
 mv "$SANDBOX/creds" "$HOME/.local/state/omarchy-delight/sidecar/sunshine-credentials"
-is "doctor unsupported without Hyprland" "$(env -u HYPRLAND_INSTANCE_SIGNATURE "$BIN" doctor >/dev/null 2>&1; echo $?)" "2"
+env -u HYPRLAND_INSTANCE_SIGNATURE "$BIN" doctor >/dev/null 2>&1
+is "doctor unsupported without Hyprland" "$?" "2"
 is "status unsupported carries a reason" "$(env -u HYPRLAND_INSTANCE_SIGNATURE "$BIN" status --json | jq -r '.state + ":" + (.reason // "")')" "unsupported:Needs a running Hyprland session"
 
 # Uninstall a Delight-installed Sunshine.
