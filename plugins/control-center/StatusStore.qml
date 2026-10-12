@@ -42,9 +42,9 @@ Item {
     }
     return busy ? "busy" : ""
   }
-  // Toggles that can't act yet (unsupported, needs setup) join the rows, so
+  // Toggles that can't act yet (unsupported, needs setup, error) join the rows, so
   // the big tiles are only things one click can switch.
-  function isTile(m) { return m.toggle && m.state !== "unsupported" && m.state !== "needs-setup" }
+  function isTile(m) { return m.toggle && m.state !== "unsupported" && m.state !== "needs-setup" && m.state !== "error" }
   readonly property var toggles: modules.filter(function(m) { return root.isTile(m) })
   readonly property var rows: modules.filter(function(m) { return !root.isTile(m) })
 

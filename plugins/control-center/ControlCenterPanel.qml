@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Wayland
 import "Delight"
 
@@ -14,8 +15,10 @@ Item {
   property var manifest: null
   property bool opened: false
   // When an outside click last closed us; the bar click that caused it must
-  // not reopen the panel it just dismissed.
+  // not reopen the panel it just dismissed. Only bar toggles are debounced.
   property real dismissedAt: 0
+  // Output to open on: the clicked bar's screen, else the focused monitor.
+  property var targetScreen: null
   // Card's distance from the screen's right edge; beneath the bar icon when
   // the bar opened us, else the window gap.
   property int rightInset: Tokens.edgeGap
@@ -33,10 +36,12 @@ Item {
   function open(payloadJson) {
     let payload = {}
     try { payload = JSON.parse(payloadJson || "{}") || {} } catch (e) { payload = {} }
-    if (Date.now() - dismissedAt < 350) {
+    if (payload.source === "bar" && Date.now() - dismissedAt < 350) {
       requestClose()
       return
     }
+    targetScreen = screenNamed(payload.screen) || screenNamed(Hyprland.focusedMonitor ? Hyprland.focusedMonitor.name : "")
+      || (Quickshell.screens.length > 0 ? Quickshell.screens[0] : null)
     let centred = payload.anchorX > 0 && payload.barWidth > 0
       ? Math.round(payload.barWidth - payload.anchorX - Tokens.sheetWidth / 2) : 0
     rightInset = Math.max(Tokens.edgeGap, centred)
@@ -50,6 +55,13 @@ Item {
       content.focusFirst()
       Tokens.refresh()
     })
+  }
+
+  function screenNamed(name) {
+    if (!name) return null
+    for (let i = 0; i < Quickshell.screens.length; i++)
+      if (Quickshell.screens[i].name === String(name)) return Quickshell.screens[i]
+    return null
   }
 
   function close() {
@@ -120,6 +132,7 @@ Item {
 
   PanelWindow {
     id: window
+    screen: root.targetScreen
     visible: root.opened
     color: "transparent"
     anchors { top: true; right: true }

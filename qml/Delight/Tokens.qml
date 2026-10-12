@@ -81,11 +81,22 @@ QtObject {
     onLoaded: { root.barGlass = true; root.updateGlassy() }
     onLoadFailed: { root.barGlass = false; root.updateGlassy() }
   }
-  // Re-read the Glassy flags and config; call when a surface opens. Two stats.
-  function refresh() {
+  // The flags are created and deleted by `omarchy toggle`; a FileView can't
+  // watch a file that doesn't exist yet, so watch their directory instead.
+  readonly property FileView glassFlagWatch: FileView {
+    path: root.glassFlagDir
+    watchChanges: true
+    printErrors: false
+    onFileChanged: root.reloadGlassFlags()
+  }
+  function reloadGlassFlags() {
     windowGlassFlag.reload()
     barGlassFlag.reload()
     noBlurFlag.reload()
+  }
+  // Re-read the Glassy flags and config; call when a surface opens.
+  function refresh() {
+    reloadGlassFlags()
     configFile.reload()
   }
 

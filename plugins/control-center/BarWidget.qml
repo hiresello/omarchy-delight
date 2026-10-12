@@ -21,7 +21,12 @@ BarWidget {
   function togglePanel() {
     let win = button.QsWindow.window
     let at = win ? button.mapToItem(win.contentItem, button.width / 2, 0) : null
-    let payload = JSON.stringify(at && win ? { anchorX: Math.round(at.x), barWidth: Math.round(win.width) } : {})
+    let payload = JSON.stringify(at && win ? {
+      source: "bar",
+      screen: win.screen ? String(win.screen.name || "") : "",
+      anchorX: Math.round(at.x),
+      barWidth: Math.round(win.width)
+    } : { source: "bar" })
     if (shell && typeof shell.toggle === "function") shell.toggle("delight.control-center", payload)
     else Quickshell.execDetached(["omarchy-shell", "shell", "toggle", "delight.control-center", payload])
   }
