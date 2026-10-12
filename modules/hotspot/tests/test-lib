@@ -1,0 +1,52 @@
+#!/bin/bash
+
+hotspot_test_init() {
+  sandbox
+  export PATH="$DELIGHT_TEST_REPO/modules/hotspot/tests/stubs:$PATH"
+  export DELIGHT_SYSFS="$SANDBOX/sys"
+  export DELIGHT_HOTSPOT_POLL_SLEEP=0
+  mkdir -p "$DELIGHT_SYSFS/class/bluetooth/hci0"
+}
+
+hotspot_nm_fixture() {
+  jq -n '{
+    connections:[
+      {name:"TestHotspot",uuid:"hotspot-uuid",type:"802-11-wireless",ssid:"TestHotspot",autoconnect:"no",priority:7,metered:"unknown"},
+      {name:"Home",uuid:"home-uuid",type:"802-11-wireless",ssid:"Home",autoconnect:"yes",priority:5,metered:"no"},
+      {name:"Other",uuid:"other-uuid",type:"802-11-wireless",ssid:"Other",autoconnect:"yes",priority:0,metered:"no"},
+      {name:"Low",uuid:"low-uuid",type:"802-11-wireless",ssid:"Low",autoconnect:"yes",priority:-3,metered:"no"},
+      {name:"Ethernet",uuid:"ethernet-uuid",type:"802-3-ethernet",autoconnect:"yes",priority:-999,metered:"no"},
+      {name:"Loopback",uuid:"loopback-uuid",type:"loopback",autoconnect:"yes",priority:-50,metered:"no"}
+    ],
+    active:[],
+    devices:[{type:"wifi",state:"disconnected"}],
+    wifi:[{ssid:"TestHotspot",signal:82},{ssid:"Cafe: Corner",signal:64}],
+    radio:"enabled",
+    upFail:0
+  }' >"$DELIGHT_STUB_STATE/nm.json"
+}
+
+hotspot_bt_fixture() {
+  jq -n '{
+    powered:true,
+    devices:{
+      "AA:BB:CC:DD:EE:FF":{alias:"Pixel 8",connected:false,icon:"phone",rssi:[-55,-56,-57,-90,-90,-90,-55,-55,-55]}
+    }
+  }' >"$DELIGHT_STUB_STATE/bt.json"
+}
+
+hotspot_install() {
+  "$DELIGHT_TEST_REPO/modules/hotspot/bin/delight-hotspot" install
+}
+
+hotspot_setup() {
+  "$DELIGHT_TEST_REPO/modules/hotspot/bin/delight-hotspot" setup --ssid TestHotspot --bt AA:BB:CC:DD:EE:FF --no-enable
+}
+
+hotspot_set() {
+  "$DELIGHT_TEST_REPO/bin/delight" config set "hotspot.$1" "$2"
+}
+
+hotspot_run_watch() {
+  DELIGHT_HOTSPOT_NOW="$1" "$DELIGHT_TEST_REPO/modules/hotspot/bin/delight-hotspot" watch --once
+}

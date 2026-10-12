@@ -1,0 +1,3 @@
+#!/bin/bash
+
+printf 'omarchy-system-lock\n' >>"$DELIGHT_STUB_LOG"

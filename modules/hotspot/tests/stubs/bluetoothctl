@@ -1,0 +1,26 @@
+#!/bin/bash
+
+set -euo pipefail
+
+if [[ -n ${DELIGHT_STUB_LOG:-} ]]; then
+  printf 'bluetoothctl' >>"$DELIGHT_STUB_LOG"
+  printf ' %q' "$@" >>"$DELIGHT_STUB_LOG"
+  printf '\n' >>"$DELIGHT_STUB_LOG"
+fi
+case "${1:-}" in
+  devices)
+    jq -r '.devices | to_entries[] | "Device " + .key + " " + (.value.alias // "Phone")' "$DELIGHT_STUB_STATE/bt.json"
+    ;;
+  paired-devices)
+    jq -r '.devices | to_entries[] | "Device " + .key + " " + (.value.alias // "Phone")' "$DELIGHT_STUB_STATE/bt.json"
+    ;;
+  --timeout)
+    [[ ${2:-} =~ ^[0-9]+$ && ${3:-} == scan && ${4:-} == on ]] || exit 2
+    ;;
+  connect)
+    [[ ${2:-} ]] || exit 2
+    ;;
+  *)
+    exit 2
+    ;;
+esac

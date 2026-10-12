@@ -1,0 +1,5 @@
+#!/bin/bash
+
+printf 'omarchy-notification-send' >>"$DELIGHT_STUB_LOG"
+printf ' %q' "$@" >>"$DELIGHT_STUB_LOG"
+printf '\n' >>"$DELIGHT_STUB_LOG"

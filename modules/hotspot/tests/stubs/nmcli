@@ -1,0 +1,97 @@
+#!/bin/bash
+
+set -euo pipefail
+
+state_file="$DELIGHT_STUB_STATE/nm.json"
+args=("$@")
+if [[ -n ${DELIGHT_STUB_LOG:-} ]]; then
+  printf 'nmcli' >>"$DELIGHT_STUB_LOG"
+  printf ' %q' "${args[@]}" >>"$DELIGHT_STUB_LOG"
+  printf '\n' >>"$DELIGHT_STUB_LOG"
+fi
+
+escape() {
+  local value=${1//\\/\\\\}
+  value=${value//:/\\:}
+  printf '%s' "$value"
+}
+
+state=$(<"$state_file")
+case "${args[*]}" in
+  "-t -f NAME,UUID,TYPE connection show")
+    jq -r '.connections[] | [.name,.uuid,.type] | @tsv' <<<"$state" | while IFS=$'\t' read -r name uuid type; do
+      printf '%s:%s:%s\n' "$(escape "$name")" "$(escape "$uuid")" "$(escape "$type")"
+    done
+    ;;
+  "-t -f UUID connection show --active")
+    jq -r '.active[]?' <<<"$state"
+    ;;
+  "-g "*)
+    field=${args[1]}
+    uuid=${args[5]}
+    case "$field" in
+      connection.id) key=name ;;
+      802-11-wireless.ssid) key=ssid ;;
+      connection.autoconnect) key=autoconnect ;;
+      connection.autoconnect-priority) key=priority ;;
+      connection.metered) key=metered ;;
+      *) exit 2 ;;
+    esac
+    jq -r --arg uuid "$uuid" --arg key "$key" '.connections[] | select(.uuid == $uuid) | .[$key] // empty' <<<"$state"
+    ;;
+  "connection modify "*)
+    uuid=${args[3]}
+    field1=${args[4]}
+    value1=${args[5]}
+    field2=${args[6]}
+    value2=${args[7]}
+    field3=${args[8]}
+    value3=${args[9]}
+    [[ $field1 == connection.autoconnect && $field2 == connection.autoconnect-priority && $field3 == connection.metered ]] || exit 2
+    jq --arg uuid "$uuid" --arg a "$value1" --arg p "$value2" --arg m "$value3" '
+      (.connections[] | select(.uuid == $uuid) | .autoconnect) = $a
+      | (.connections[] | select(.uuid == $uuid) | .priority) = ($p | tonumber)
+      | (.connections[] | select(.uuid == $uuid) | .metered) = $m
+    ' <<<"$state" >"$state_file"
+    ;;
+  "connection up uuid "*)
+    uuid=${args[3]}
+    failures=$(jq -r '.upFail // 0' <<<"$state")
+    if ((failures > 0)); then
+      jq '.upFail -= 1' <<<"$state" >"$state_file"
+      exit 10
+    fi
+    jq --arg uuid "$uuid" '.active = [$uuid]' <<<"$state" >"$state_file"
+    ;;
+  "connection delete uuid "*)
+    uuid=${args[3]}
+    jq --arg uuid "$uuid" '.connections |= map(select(.uuid != $uuid)) | .active |= map(select(. != $uuid))' \
+      <<<"$state" >"$state_file"
+    ;;
+  "-t -f TYPE,STATE device")
+    jq -r '.devices[] | "\(.type):\(.state)"' <<<"$state"
+    ;;
+  "-t -f SSID,SIGNAL device wifi list --rescan no")
+    jq -r '.wifi[]? | [.ssid,.signal] | @tsv' <<<"$state" | while IFS=$'\t' read -r ssid signal; do
+      printf '%s:%s\n' "$(escape "$ssid")" "$signal"
+    done
+    ;;
+  "device wifi rescan ssid "*)
+    ;;
+  "radio wifi")
+    jq -r '.radio // "enabled"' <<<"$state"
+    ;;
+  "--ask device wifi connect "*)
+    ssid=${args[4]}
+    uuid="created-${RANDOM}"
+    jq --arg ssid "$ssid" --arg uuid "$uuid" '
+      .connections += [{name:$ssid,uuid:$uuid,type:"802-11-wireless",ssid:$ssid,autoconnect:"yes",priority:0,metered:"no"}]
+    ' <<<"$state" >"$state_file"
+    ;;
+  *)
+    printf 'UNSUPPORTED nmcli' >>"$DELIGHT_STUB_LOG"
+    printf ' %q' "${args[@]}" >>"$DELIGHT_STUB_LOG"
+    printf '\n' >>"$DELIGHT_STUB_LOG"
+    exit 2
+    ;;
+esac

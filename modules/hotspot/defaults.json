@@ -1,0 +1,35 @@
+{
+  "enabled": false,
+  "ssid": "",
+  "connection": "",
+  "phone": {
+    "mac": "",
+    "name": ""
+  },
+  "adapter": "",
+  "autoJoin": true,
+  "proximity": {
+    "method": "scan",
+    "nearRssi": -70,
+    "awayRssi": -85,
+    "nearDwell": 10,
+    "awayDwell": 120,
+    "smoothing": 0.4,
+    "connectedIsNear": true,
+    "maxGap": 300
+  },
+  "scan": {
+    "interval": 30,
+    "fastInterval": 10,
+    "window": 5,
+    "pauseBelowBattery": 20
+  },
+  "backoff": {
+    "initial": 15,
+    "max": 600
+  },
+  "hints": {
+    "away": "off",
+    "return": "off"
+  }
+}

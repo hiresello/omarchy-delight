@@ -1,0 +1,4 @@
+#!/bin/bash
+
+printf 'omarchy-hyprland-session-locked\n' >>"$DELIGHT_STUB_LOG"
+exit "${DELIGHT_STUB_LOCKED:-1}"

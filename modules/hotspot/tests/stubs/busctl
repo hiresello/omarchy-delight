@@ -1,0 +1,43 @@
+#!/bin/bash
+
+set -euo pipefail
+
+state_file="$DELIGHT_STUB_STATE/bt.json"
+if [[ -n ${DELIGHT_STUB_LOG:-} ]]; then
+  printf 'busctl' >>"$DELIGHT_STUB_LOG"
+  printf ' %q' "$@" >>"$DELIGHT_STUB_LOG"
+  printf '\n' >>"$DELIGHT_STUB_LOG"
+fi
+[[ ${1:-} == get-property && $# == 5 ]] || exit 2
+path=$3
+interface=${4##*.}
+property=$5
+if [[ $interface == Adapter1 && $property == Powered ]]; then
+  jq -r '"b " + ((.powered // false) | tostring)' "$state_file"
+  exit 0
+fi
+mac=${path##*/dev_}
+mac=${mac//_/:}
+actual=$(jq -r --arg mac "${mac^^}" '.devices | keys[] | select(ascii_upcase == $mac)' "$state_file" | head -n1)
+[[ -n $actual ]] || exit 1
+case "$property" in
+  Alias)
+    jq -r --arg mac "$actual" '.devices[$mac].alias // empty | "s " + tojson' "$state_file"
+    ;;
+  Connected)
+    jq -r --arg mac "$actual" '"b " + ((.devices[$mac].connected // false) | tostring)' "$state_file"
+    ;;
+  Icon)
+    jq -r --arg mac "$actual" '.devices[$mac].icon // empty | "s " + tojson' "$state_file"
+    ;;
+  RSSI)
+    value=$(jq -r --arg mac "$actual" '.devices[$mac].rssi[0] // empty' "$state_file")
+    [[ -n $value && $value != - ]] || exit 1
+    jq --arg mac "$actual" '.devices[$mac].rssi |= (.[1:] // [])' "$state_file" >"$state_file.tmp"
+    mv -f "$state_file.tmp" "$state_file"
+    printf 'n %s\n' "$value"
+    ;;
+  *)
+    exit 2
+    ;;
+esac
