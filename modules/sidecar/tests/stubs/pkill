@@ -1,0 +1,3 @@
+#!/bin/bash
+printf 'pkill %s\n' "$*" >>"${DELIGHT_STUB_LOG:-/dev/null}"
+rm -f "${DELIGHT_STUB_STATE:-/tmp}/stray-${*: -1}"

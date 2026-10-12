@@ -1,0 +1,102 @@
+#!/bin/bash
+
+# Fake hyprctl for sidecar tests: keeps monitors, workspaces and monitor rules
+# in $DELIGHT_STUB_STATE/hypr.json and answers like Hyprland 0.56 (Lua config).
+
+printf 'hyprctl %s\n' "$*" >>"${DELIGHT_STUB_LOG:-/dev/null}"
+db="${DELIGHT_STUB_STATE:-/tmp}/hypr.json"
+if [[ ! -f $db ]]; then
+  cat >"$db" <<'JSON'
+{"monitors":[
+  {"id":0,"name":"eDP-1","width":2880,"height":1800,"refreshRate":60.0,"x":0,"y":0,"scale":2.0,"transform":0,"focused":true},
+  {"id":1,"name":"DP-1","width":2560,"height":1440,"refreshRate":60.0,"x":1440,"y":0,"scale":1.0,"transform":0,"focused":false}
+ ],
+ "workspaces":[{"id":1,"name":"1","monitor":"eDP-1"},{"id":2,"name":"2","monitor":"DP-1"}],
+ "rules":{}}
+JSON
+fi
+
+update() {
+  local tmp
+  tmp=$(mktemp)
+  jq "$@" "$db" >"$tmp" && mv -f "$tmp" "$db"
+}
+
+field() {
+  sed -nE "s/.*$1 = \"?([^\",}]+)\"?.*/\1/p" <<<"$2" | sed 's/ *$//'
+}
+
+json=false
+[[ ${1:-} == "-j" ]] && json=true && shift
+[[ ${*: -1} == "-j" ]] && json=true
+
+case "${1:-}" in
+  version)
+    if $json; then echo '{"version":"0.56.0","tag":"v0.56.0"}'; else echo "Hyprland 0.56.0"; fi
+    ;;
+  monitors) jq '.monitors | map(. + {activeWorkspace: {name: "1"}})' "$db" ;;
+  workspaces) jq '.workspaces' "$db" ;;
+  reload) echo ok ;;
+  eval)
+    lua="${*:2}"
+    if [[ $lua == hl.monitor\(* ]]; then
+      out=$(field output "$lua") mode=$(field mode "$lua") pos=$(field position "$lua") scale=$(field scale "$lua")
+      update --arg o "$out" --arg m "$mode" --arg p "$pos" --arg s "$scale" '
+        .rules[$o] = {mode: $m, position: $p, scale: ($s | tonumber)}
+        | ($m | capture("(?<w>[0-9]+)x(?<h>[0-9]+)@(?<r>[0-9.]+)")) as $mm
+        | ($p | capture("(?<x>-?[0-9]+)x(?<y>-?[0-9]+)")) as $pp
+        | .monitors |= map(if .name == $o then . + {width: ($mm.w|tonumber), height: ($mm.h|tonumber),
+            refreshRate: ($mm.r|tonumber), x: ($pp.x|tonumber), y: ($pp.y|tonumber), scale: ($s|tonumber)} else . end)'
+      echo ok
+    else
+      echo "eval: unsupported in stub"
+    fi
+    ;;
+  dispatch)
+    lua="${*:2}"
+    case "$lua" in
+      hl.dsp.workspace.move*)
+        update --arg w "$(field workspace "$lua")" --arg m "$(field monitor "$lua")" \
+          '.workspaces |= map(if .name == $w then .monitor = $m else . end)'
+        echo ok
+        ;;
+      hl.dsp.focus*)
+        update --arg m "$(field monitor "$lua")" '.monitors |= map(.focused = (.name == $m))'
+        echo ok
+        ;;
+      *) echo "unknown dispatcher" ;;
+    esac
+    ;;
+  output)
+    case "${2:-}" in
+      create | add)
+        name="${4:-HEADLESS-1}"
+        if jq -e --arg n "$name" 'any(.monitors[]; .name == $n)' "$db" >/dev/null; then
+          echo "A real monitor already uses that name."
+          exit 0
+        fi
+        update --arg n "$name" '
+          (.rules[$n] // {mode: "1920x1080@60", position: "auto", scale: 1}) as $r
+          | ($r.mode | capture("(?<w>[0-9]+)x(?<h>[0-9]+)@(?<r>[0-9.]+)")) as $mm
+          | (if $r.position == "auto" then {x: ([.monitors[] | .x + (.width / .scale)] | max), y: 0}
+             else ($r.position | capture("(?<x>-?[0-9]+)x(?<y>-?[0-9]+)") | {x: (.x|tonumber), y: (.y|tonumber)}) end) as $pp
+          | ([.workspaces[].id] | max + 1) as $ws
+          | .monitors += [{id: (.monitors | length), name: $n, width: ($mm.w|tonumber), height: ($mm.h|tonumber),
+              refreshRate: ($mm.r|tonumber), x: $pp.x, y: $pp.y, scale: $r.scale, transform: 0, focused: false}]
+          | .workspaces += [{id: $ws, name: ($ws|tostring), monitor: $n}]'
+        echo ok
+        ;;
+      remove | destroy)
+        name="${3:-}"
+        if ! jq -e --arg n "$name" 'any(.monitors[]; .name == $n)' "$db" >/dev/null; then
+          echo "output not found"
+          exit 0
+        fi
+        update --arg n "$name" '.monitors |= map(select(.name != $n))
+          | .monitors[0].name as $first | .workspaces |= map(if .monitor == $n then .monitor = $first else . end)'
+        echo ok
+        ;;
+    esac
+    ;;
+  *) echo "unknown request" ;;
+esac

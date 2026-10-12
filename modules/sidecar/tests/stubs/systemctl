@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# systemctl stub that also tracks is-active for sidecar tests.
+printf 'systemctl %s\n' "$*" >>"${DELIGHT_STUB_LOG:-/dev/null}"
+state=${DELIGHT_STUB_STATE:-/tmp}
+args=("$@")
+unit=${args[-1]}
+case " $* " in
+  *" is-active "*) [[ -f $state/active-$unit ]] ;;
+  *" is-enabled "*) [[ -f $state/unit-$unit ]] ;;
+  *" enable "*) touch "$state/unit-$unit" ;;
+  *" disable "*) rm -f "$state/unit-$unit" ;;
+  *" restart "* | *" start "*) touch "$state/active-$unit" ;;
+  *" stop "*) rm -f "$state/active-$unit" ;;
+esac
