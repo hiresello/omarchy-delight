@@ -83,9 +83,20 @@ delight doctor >"$snap/doctor.log" 2>&1
 ok "delight doctor ran (log saved)" true
 is "Hyprland reports no config errors" "$(hyprctl -j configerrors | jq '[.[] | select(. != "")] | length')" 0
 
-delight ui summon delight.control-center >/dev/null 2>&1
-vm_screenshot control-center 4
-delight ui summon delight.control-center >/dev/null 2>&1 || true
+# Module installs make the shell reload its plugins for a while, and summon
+# toggles, so summon once per attempt and give the panel time to map.
+panel_mapped() { hyprctl layers -j | grep -q '"delight-control-center"'; }
+panel_open() {
+  local try
+  for try in 1 2 3; do
+    echo "summon $try: $(delight ui summon delight.control-center 2>&1) (exit $?)" >>"$snap/panel.log"
+    vm_wait_for 10 panel_mapped && return 0
+  done
+  hyprctl layers -j >>"$snap/panel.log"
+  return 1
+}
+ok "the Control Center panel opens" panel_open
+vm_screenshot control-center 2
 
 for id in "${modules[@]}"; do
   delight "$id" uninstall >"$snap/$id-uninstall.log" 2>&1
