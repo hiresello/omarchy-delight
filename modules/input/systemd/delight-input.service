@@ -1,0 +1,12 @@
+[Unit]
+Description=Omarchy Delight: shared keyboard and mouse
+PartOf=delight.target
+After=graphical-session.target
+
+[Service]
+ExecStart=%h/.local/share/omarchy-delight/modules/input/bin/delight-input run
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=delight.target

@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "id": "input",
+  "name": "Universal Control",
+  "icon": "󰍽",
+  "description": "Share this computer's keyboard and mouse with neighbouring machines (Deskflow / Lan Mouse).",
+  "packages": { "repo": ["deskflow", "lan-mouse"], "aur": [] },
+  "units": ["delight-input.service"],
+  "firewall": [
+    { "proto": "tcp", "ports": "24800", "description": "Deskflow" },
+    { "proto": "udp", "ports": "4242", "description": "Lan Mouse" }
+  ],
+  "capabilities": ["portal", "hyprland"],
+  "provides": { "shareTargets": false, "devices": true },
+  "plugin": "plugin",
+  "menu": [
+    { "id": "toggle", "label": "Toggle Universal Control", "icon": "󰍽", "action": "delight input toggle" },
+    { "id": "arrange", "label": "Arrange Displays…", "icon": "󰍽", "action": "delight ui summon delight.input" }
+  ]
+}
