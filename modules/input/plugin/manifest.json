@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "delight.input",
+  "name": "Universal Control",
+  "version": "0.1.0",
+  "description": "Arrange neighbouring computers for shared keyboard and mouse.",
+  "kinds": [
+    "panel"
+  ],
+  "entryPoints": {
+    "panel": "ArrangePanel.qml"
+  }
+}
