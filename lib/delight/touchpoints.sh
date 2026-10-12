@@ -36,7 +36,7 @@ delight_menu_generate() {
   printf '  "delight.control-center": {"icon":"󰒓","label":"Control Center","action":"delight ui summon %s"},\n' "$DELIGHT_CONTROL_CENTER"
   while IFS= read -r id; do
     jq -r --arg id "$id" '.menu[]? |
-      "  \(("delight." + $id + "." + .id) | tojson): \({icon, label, action} | with_entries(select(.value != null)) | tojson),"' \
+      "  \(("delight." + $id + "." + .id) | tojson): \({icon: .icon, label: .label, action: .action} | with_entries(select(.value != null)) | tojson),"' \
       "$DELIGHT_MODULES_DIR/$id/module.json"
   done < <(delight_installed_modules)
 }
