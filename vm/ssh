@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# Log in to the VM as the desktop user, or run a command there with the
+# desktop session's environment (WAYLAND_DISPLAY, HYPRLAND_INSTANCE_SIGNATURE…).
+#
+#   vm/ssh
+#   vm/ssh hyprctl clients
+
+set -euo pipefail
+# shellcheck source=vm/lib/host.sh
+source "$(dirname -- "${BASH_SOURCE[0]}")/lib/host.sh"
+
+vm_require_running
+if (($# == 0)); then
+  vm_ssh -t
+else
+  vm_push_lib
+  printf -v cmd '%q ' "$@"
+  vm_guest "$cmd"
+fi

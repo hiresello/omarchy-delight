@@ -1,0 +1,91 @@
+name: VM
+
+# Boots a fresh Omarchy VM, installs Delight from this ref and runs every
+# vm-*.sh test (docs/vm.md). Needs a runner with /dev/kvm; skips without it.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: 'runs-on, as JSON. GitHub-hosted "ubuntu-latest" has KVM too.'
+        default: '["self-hosted", "linux", "kvm"]'
+      image:
+        description: 'Omarchy image: "pinned" (vm/image.env) or "latest" stable'
+        default: pinned
+      tests:
+        description: 'Test files to run (space-separated); empty runs them all'
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  vm:
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    timeout-minutes: 45
+    env:
+      DELIGHT_VM_IMAGE: ${{ inputs.image }}
+      DELIGHT_VM_HOME: ${{ github.workspace }}/../delight-vm
+    steps:
+      - name: Check for KVM
+        id: kvm
+        run: |
+          if [[ -e /dev/kvm ]] && [[ ! -w /dev/kvm ]] && sudo -n true 2>/dev/null; then
+            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+              | sudo tee /etc/udev/rules.d/99-kvm4all.rules >/dev/null
+            sudo udevadm control --reload-rules
+            sudo udevadm trigger --name-match=kvm
+          fi
+          if [[ -r /dev/kvm && -w /dev/kvm ]]; then
+            echo "ok=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "::notice title=VM tests skipped::this runner has no usable /dev/kvm"
+            echo "ok=false" >>"$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.kvm.outputs.ok == 'true'
+      - name: Install QEMU
+        if: steps.kvm.outputs.ok == 'true'
+        run: |
+          missing=()
+          for cmd in qemu-system-x86_64 qemu-img ssh jq curl; do
+            command -v "$cmd" >/dev/null || missing+=("$cmd")
+          done
+          if ((${#missing[@]} > 0)); then
+            sudo apt-get update -qq
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq qemu-system-x86 qemu-utils openssh-client jq curl
+          fi
+      - name: Cache the Omarchy image
+        if: steps.kvm.outputs.ok == 'true' && inputs.image == 'pinned'
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.DELIGHT_VM_HOME }}/images
+          key: omarchy-vm-${{ hashFiles('vm/image.env') }}
+      - name: vm/up
+        if: steps.kvm.outputs.ok == 'true'
+        run: time vm/up --new
+      - name: vm/install-delight
+        if: steps.kvm.outputs.ok == 'true'
+        run: time vm/install-delight .
+      - name: vm/run-all
+        if: steps.kvm.outputs.ok == 'true'
+        env:
+          TESTS: ${{ inputs.tests }}
+        run: |
+          read -ra files <<<"$TESTS"
+          time vm/run-all "${files[@]}"
+      - name: Summary
+        if: always() && steps.kvm.outputs.ok == 'true'
+        run: |
+          if [[ -f vm/out/latest/tap/all.tap ]]; then
+            { echo '```'; cat vm/out/latest/tap/all.tap; echo '```'; } >>"$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.kvm.outputs.ok == 'true'
+        with:
+          name: vm-out
+          path: vm/out/
+          if-no-files-found: ignore
+      - name: vm/down
+        if: always() && steps.kvm.outputs.ok == 'true'
+        run: vm/down --destroy
