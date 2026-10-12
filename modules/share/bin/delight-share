@@ -1,0 +1,547 @@
+#!/bin/bash
+
+# Share module: LocalSend discovery, share sheet, receive notifications and
+# optional AirDrop (opendrop/owlink) mode. See modules/share/README.md.
+
+set -euo pipefail
+
+DELIGHT_ROOT=$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../../.." && pwd)
+# shellcheck source=../../../lib/delight/delight.sh
+source "$DELIGHT_ROOT/lib/delight/delight.sh"
+
+DELIGHT_MODULE_ID=$(basename -- "${BASH_SOURCE[0]}")
+DELIGHT_MODULE_ID=${DELIGHT_MODULE_ID#delight-}
+
+SHARE_RUN_DIR="$DELIGHT_RUNTIME_DIR/share"
+SHARE_PEERS_FILE="$SHARE_RUN_DIR/peers.json"
+SHARE_SEEN_FILE="$SHARE_RUN_DIR/seen-receive-ids"
+SHARE_FP_FILE="$SHARE_RUN_DIR/fingerprint"
+SHARE_PREFS_FILE="$HOME/.local/share/org.localsend.localsend_app/shared_preferences.json"
+SHARE_NAUTILUS_DEST="$HOME/.local/share/nautilus-python/extensions/delight-share.py"
+SHARE_LOCALSEND_PORT=53317
+SHARE_AIRDROPPED_PKGS=(opendrop owlink-git)
+
+share_dir() {
+  mkdir -p -- "$SHARE_RUN_DIR"
+}
+
+share_timeout() {
+  delight_config_get share discoveryTimeout 2>/dev/null || printf '2\n'
+}
+
+share_airdrop() {
+  [[ $(delight_config_get share airdrop 2>/dev/null) == "true" ]]
+}
+
+share_fingerprint() {
+  share_dir
+  if [[ ! -f $SHARE_FP_FILE ]]; then
+    head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n' >"$SHARE_FP_FILE"
+  fi
+  cat -- "$SHARE_FP_FILE"
+}
+
+# --- discovery --------------------------------------------------------------
+
+# Our own info, sent with /register and /prepare-upload.
+share_self_info() {
+  jq -cn --arg alias "$(hostname) (Delight)" --arg fp "$(share_fingerprint)" --argjson port "$SHARE_LOCALSEND_PORT" \
+    '{alias:$alias,version:"2.1",deviceType:"desktop",fingerprint:$fp,port:$port,protocol:"https"}'
+}
+
+# Emit one peer JSON per LocalSend responder. Network scan is skipped entirely
+# when DELIGHT_SHARE_PEERS_FIXTURE points at a JSON file (used by tests).
+share_discover() {
+  if [[ -n ${DELIGHT_SHARE_PEERS_FIXTURE:-} && -f ${DELIGHT_SHARE_PEERS_FIXTURE:-} ]]; then
+    cat -- "$DELIGHT_SHARE_PEERS_FIXTURE"
+    return 0
+  fi
+
+  local timeout tmp iif addr base n
+  timeout=$(share_timeout)
+  tmp=$(mktemp -d)
+
+  if delight_has_cmd ip && delight_has_cmd curl; then
+    while IFS='|' read -r iif addr _; do
+      [[ -n $addr && $addr != 127.* ]] || continue
+      # Scan the /24 of every non-loopback address (prefixlen information is
+      # advisory; LocalSend itself sweeps the subnet).
+      base=${addr%.*}
+      printf '%s|%s\n' "$iif" "$base" >>"$tmp/nets"
+      for ((n = 1; n < 255; n++)); do
+        [[ $base.$n == "$addr" ]] && continue
+        printf '%s\n' "$base.$n" >>"$tmp/hosts"
+      done
+    done < <(ip -j -4 addr show up 2>/dev/null | jq -r '.[] | .ifname as $i | .addr_info[]? | select(.family=="inet") | "\($i)|\(.local)|\(.prefixlen)"')
+
+    if [[ -s $tmp/hosts ]]; then
+      sort -u "$tmp/hosts" | xargs -P 64 -I{} bash -c '
+        ip="$1"; out="$2"; self="$3"; t="$4"
+        for scheme in https http; do
+          extra=()
+          [[ $scheme == https ]] && extra=(-k)
+          reply=$(curl -sS "${extra[@]}" --max-time "$t" -H "Content-Type: application/json" \
+            -d "$self" "$scheme://$ip:53317/api/localsend/v2/register" 2>/dev/null) \
+            || reply=$(curl -sS "${extra[@]}" --max-time "$t" "$scheme://$ip:53317/api/localsend/v2/info" 2>/dev/null) \
+            || continue
+          if jq -e "type == \"object\" and (.alias // \"\") != \"\"" <<<"$reply" >/dev/null 2>&1; then
+            jq -c --arg ip "$ip" --arg proto "$scheme" ". + {ip:\$ip, protocol:\$proto}" <<<"$reply" >"$out/$scheme-$ip.json"
+            exit 0
+          fi
+        done
+      ' _ {} "$tmp" "$(share_self_info)" "$timeout" 2>/dev/null || true
+    fi
+  fi
+
+  # AirDrop peers via opendrop, best effort.
+  if share_airdrop && delight_has_cmd opendrop; then
+    timeout "$((timeout + 3))" opendrop find >"$tmp/opendrop.txt" 2>/dev/null || true
+    if [[ -s $tmp/opendrop.txt ]]; then
+      while IFS= read -r line; do
+        [[ $line =~ name:\ *([^,]+) ]] || continue
+        jq -cn --arg id "${BASH_REMATCH[1]}" '{airdropId:$id}' >"$tmp/airdrop-${BASH_REMATCH[1]// /_}.json"
+      done <"$tmp/opendrop.txt"
+    fi
+  fi
+
+  find "$tmp" -name '*.json' -type f -print0 | sort -z | xargs -0 -r cat | jq -sc .
+  rm -rf -- "$tmp"
+}
+
+# Cached peers; refresh when the cache is older than 30s or missing.
+# A fixture file bypasses the cache so tests always see fresh data.
+share_peers() {
+  local stamp
+  if [[ -n ${DELIGHT_SHARE_PEERS_FIXTURE:-} && -f ${DELIGHT_SHARE_PEERS_FIXTURE:-} ]]; then
+    cat -- "$DELIGHT_SHARE_PEERS_FIXTURE"
+    return 0
+  fi
+  if [[ -f $SHARE_PEERS_FILE ]]; then
+    stamp=$(stat -c %Y -- "$SHARE_PEERS_FILE" 2>/dev/null || echo 0)
+    if (($(date +%s) - stamp < 30)); then
+      cat -- "$SHARE_PEERS_FILE"
+      return 0
+    fi
+  fi
+  local peers
+  peers=$(share_discover) || peers='[]'
+  jq -e 'type == "array"' <<<"$peers" >/dev/null 2>&1 || peers='[]'
+  share_dir
+  printf '%s\n' "$peers" >"$SHARE_PEERS_FILE"
+  printf '%s\n' "$peers"
+}
+
+module_share-targets() {
+  local peers='[]'
+  peers=$(share_peers 2>/dev/null) || peers='[]'
+  jq -e 'type == "array"' <<<"$peers" >/dev/null 2>&1 || peers='[]'
+  # kind is a free-form string in the schema; map LocalSend deviceType onto
+  # the phone/laptop/desktop vocabulary the share sheet draws.
+  jq -c '[.[] | select(type == "object") |
+    (if .airdropId then
+      {id: ("airdrop:" + (.airdropId | tostring)), label: (.airdropId | tostring), icon: "", kind: "phone"}
+    else
+      {id: ("localsend:" + ((.fingerprint // .ip // "unknown") | tostring)),
+       label: ((.alias // .ip // "Unknown") | tostring),
+       icon: "",
+       kind: ({"mobile":"phone","phone":"phone","desktop":"desktop","headless":"desktop",
+               "server":"desktop","web":"web"}[.deviceType // ""] // "laptop")}
+    end)]' <<<"$peers" 2>/dev/null || printf '[]\n'
+}
+
+# --- install / enable -------------------------------------------------------
+
+module_install() {
+  delight_module_default_install "$@"
+  local dir
+  dir=$(delight_module_dir share)
+  delight_file_install share "$dir/nautilus/delight-share.py" "$SHARE_NAUTILUS_DEST"
+}
+
+module_enable() {
+  if [[ ${1:-} == "--airdrop" ]]; then
+    if ! delight_hw_wifi_monitor; then
+      echo "share: AirDrop needs a Wi-Fi adapter with monitor mode + frame injection (iw list shows none)" >&2
+      exit 2
+    fi
+    delight_pkg_add share aur "${SHARE_AIRDROPPED_PKGS[@]}"
+    delight_config_set share airdrop true
+    return 0
+  fi
+  delight_module_default_enable "$@"
+}
+
+module_disable() {
+  if [[ ${1:-} == "--airdrop" ]]; then
+    delight_config_set share airdrop false
+    return 0
+  fi
+  delight_module_default_disable "$@"
+}
+
+module_status() {
+  local id=share name icon subtitle actions state=off reason=""
+  name=$(delight_module_field "$id" '.name')
+  icon=$(delight_module_field "$id" '.icon')
+  actions=$(jq -cn '[{label:"Share…",command:["delight","share","sheet"]}]')
+  if ! delight_is_installed "$id"; then
+    delight_status_json --id "$id" --state needs-setup --title "$name" --subtitle "Not installed" --icon "$icon" \
+      --actions "$(jq -cn '[{label:"Install",command:["delight","share","install"]}]')"
+    return 0
+  fi
+  if share_airdrop && ! delight_hw_wifi_monitor; then
+    delight_status_json --id "$id" --state unsupported --title "$name" --icon "$icon" --actions "$actions" \
+      --reason "AirDrop mode on but no monitor-mode Wi-Fi adapter" --subtitle "LocalSend + AirDrop"
+    return 0
+  fi
+  local nearby=0
+  if [[ -f $SHARE_PEERS_FILE ]]; then
+    nearby=$(jq 'length' "$SHARE_PEERS_FILE" 2>/dev/null || echo 0)
+  fi
+  if delight_module_enabled; then
+    state=on
+    subtitle="LocalSend · $nearby nearby"
+    share_airdrop && subtitle="LocalSend + AirDrop · $nearby nearby"
+  else
+    state=off
+    subtitle="Off"
+  fi
+  delight_status_json --id "$id" --state "$state" --title "$name" --subtitle "$subtitle" --icon "$icon" \
+    --actions "$actions" ${reason:+--reason "$reason"}
+}
+
+module_doctor() {
+  local airdrop=false rc=0
+  [[ ${1:-} == "--airdrop" ]] && airdrop=true
+  share_airdrop && airdrop=true
+  if [[ $airdrop == true ]] && ! delight_hw_wifi_monitor; then
+    echo "share: AirDrop requested but no Wi-Fi adapter supports monitor mode + frame injection" >&2
+    exit 2
+  fi
+  if ! delight_has_cmd localsend && ! delight_has_cmd localsend-cli; then
+    echo "missing localsend (run: delight share install)"
+    rc=1
+  fi
+  if delight_has_cmd ufw && ufw status 2>/dev/null | grep -q .; then
+    if ! ufw status 2>/dev/null | grep -q "53317"; then
+      echo "ufw does not allow LocalSend port 53317 (Omarchy normally opens it)"
+      rc=1
+    fi
+  fi
+  local unit missing_unit=false
+  while IFS= read -r unit; do
+    [[ -n $unit ]] || continue
+    [[ -f $DELIGHT_UNIT_DIR/$unit ]] || missing_unit=true
+  done < <(delight_module_units)
+  if [[ $missing_unit == true ]]; then
+    echo "systemd unit not installed (run: delight share install)"
+    rc=1
+  fi
+  ((rc == 0)) && echo "ok"
+  return "$rc"
+}
+
+# --- send -------------------------------------------------------------------
+
+# 0 when a localsend CLI with a --to flag is available.
+share_send_supports_to() {
+  local cmd
+  for cmd in localsend localsend-cli; do
+    delight_has_cmd "$cmd" || continue
+    if "$cmd" --headless send --help 2>&1 | grep -q -- '--to'; then
+      return 0
+    fi
+    if "$cmd" send --help 2>&1 | grep -q -- '--to'; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+share_send_cli() {
+  local ip="$1" cmd
+  shift
+  for cmd in localsend localsend-cli; do
+    delight_has_cmd "$cmd" || continue
+    if "$cmd" --headless send --help 2>&1 | grep -q -- '--to'; then
+      "$cmd" --headless send --to "$ip" "$@"
+      return $?
+    fi
+    if "$cmd" send --help 2>&1 | grep -q -- '--to'; then
+      "$cmd" send --to "$ip" "$@"
+      return $?
+    fi
+  done
+  return 127
+}
+
+share_mime() {
+  if delight_has_cmd file; then
+    file --mime-type -b -- "$1" 2>/dev/null && return 0
+  fi
+  printf 'application/octet-stream\n'
+}
+
+# curl-based LocalSend upload for when no CLI with --to exists.
+share_send_protocol() {
+  local ip="$1" proto="${2:-https}"
+  shift 2
+  local files=("$@") base tmp body response code session fid file name size mime
+  base="$proto://$ip:$SHARE_LOCALSEND_PORT/api/localsend/v2"
+  tmp=$(mktemp -d)
+
+  body=$(jq -cn --argjson info "$(share_self_info)" '{$info=$info} | {info:$info, files:{}}')
+  local files_json='{}' i=0
+  for file in "${files[@]}"; do
+    name=$(basename -- "$file")
+    size=$(stat -c %s -- "$file")
+    mime=$(share_mime "$file")
+    fid="f$i"
+    files_json=$(jq -c --arg id "$fid" --arg n "$name" --argjson s "$size" --arg t "$mime" \
+      '. + {($id): {id:$id, fileName:$n, size:$s, fileType:$t}}' <<<"$files_json")
+    i=$((i + 1))
+  done
+  body=$(jq -cn --argjson info "$(share_self_info)" --argjson f "$files_json" '{info:$info, files:$f}')
+
+  local insecure=()
+  [[ $proto == https ]] && insecure=(-k)
+  response=$(curl -sS "${insecure[@]}" --max-time 30 -o "$tmp/resp.json" -w '%{http_code}' \
+    -H "Content-Type: application/json" -d "$body" "$base/prepare-upload" 2>/dev/null) || response=000
+
+  case "$response" in
+    200) ;;
+    204)
+      echo "share: receiver says nothing to send" >&2
+      rm -rf -- "$tmp"
+      return 0
+      ;;
+    403)
+      echo "share: $ip rejected the transfer" >&2
+      rm -rf -- "$tmp"
+      return 1
+      ;;
+    409)
+      echo "share: $ip is busy with another transfer" >&2
+      rm -rf -- "$tmp"
+      return 1
+      ;;
+    *)
+      echo "share: prepare-upload failed (HTTP $response)" >&2
+      rm -rf -- "$tmp"
+      return 1
+      ;;
+  esac
+
+  session=$(jq -r '.sessionId' "$tmp/resp.json")
+  i=0
+  for file in "${files[@]}"; do
+    fid="f$i"
+    local token
+    token=$(jq -r --arg id "$fid" '.files[$id] // empty' "$tmp/resp.json")
+    if [[ -z $token ]]; then
+      i=$((i + 1))
+      continue
+    fi
+    code=$(curl -sS "${insecure[@]}" --max-time 600 -o /dev/null -w '%{http_code}' \
+      -X POST --data-binary @"$file" \
+      "$base/upload?sessionId=$session&fileId=$fid&token=$token" 2>/dev/null) || code=000
+    if [[ $code != 200 ]]; then
+      echo "share: upload of $(basename -- "$file") failed (HTTP $code)" >&2
+      rm -rf -- "$tmp"
+      return 1
+    fi
+    i=$((i + 1))
+  done
+  rm -rf -- "$tmp"
+}
+
+module_send() {
+  (($# >= 2)) || delight_die "usage: delight-share send <target-id> <paths...>" 64
+  local target="$1" proto="" ip path files=()
+  shift
+  for path in "$@"; do
+    [[ -d $path ]] && delight_die "send: '$path' is a directory; share its files instead" 64
+    [[ -f $path ]] || delight_die "send: no such file '$path'" 64
+    files+=("$path")
+  done
+  delight_notify share "Sending ${#files[@]} file(s)" "to $target"
+  case "$target" in
+    localsend:*)
+      ip=${target#localsend:}
+      proto=https
+      # Non-IP ids are LocalSend fingerprints; resolve against the peer cache.
+      if [[ $ip != *.*.*.* && -f $SHARE_PEERS_FILE ]]; then
+        local ent
+        ent=$(jq -r --arg t "$ip" '.[] | select(.fingerprint == $t) | "\(.protocol // "https") \(.ip)"' \
+          "$SHARE_PEERS_FILE" 2>/dev/null | head -1)
+        [[ -n $ent ]] && read -r proto ip <<<"$ent"
+      fi
+      [[ $ip == *.*.*.* ]] || delight_die "send: cannot resolve $target to an IP" 1
+      if share_send_supports_to; then
+        if share_send_cli "$ip" "${files[@]}"; then
+          delight_notify share "Sent ${#files[@]} file(s)" "to $ip"
+          return 0
+        fi
+        delight_notify share "Send failed" "localsend could not reach $ip"
+        return 1
+      fi
+      if share_send_protocol "$ip" "$proto" "${files[@]}"; then
+        delight_notify share "Sent ${#files[@]} file(s)" "to $ip"
+        return 0
+      fi
+      delight_notify share "Send failed" "$ip did not accept the transfer"
+      return 1
+      ;;
+    airdrop:*)
+      delight_has_cmd opendrop || delight_die "send: opendrop is not installed (delight share enable --airdrop)" 1
+      local rc=0 f
+      for f in "${files[@]}"; do
+        opendrop send -r "${target#airdrop:}" -f "$f" || rc=1
+      done
+      if ((rc == 0)); then
+        delight_notify share "Sent ${#files[@]} file(s)" "via AirDrop to ${target#airdrop:}"
+      else
+        delight_notify share "Send failed" "AirDrop to ${target#airdrop:} failed"
+      fi
+      return "$rc"
+      ;;
+    *) delight_die "send: unknown target '$target'" 64 ;;
+  esac
+}
+
+# --- share sheet ------------------------------------------------------------
+
+module_sheet() {
+  local clipboard=false paths=()
+  while (($# > 0)); do
+    case "$1" in
+      --clipboard) clipboard=true ;;
+      *) paths+=("$1") ;;
+    esac
+    shift
+  done
+
+  share_dir
+  if [[ $clipboard == true ]]; then
+    delight_has_cmd wl-paste || delight_die "sheet: --clipboard needs wl-paste" 1
+    local clip
+    clip="$SHARE_RUN_DIR/clipboard-$(date +%s).bin"
+    wl-paste -n >"$clip"
+    [[ -s $clip ]] || delight_die "sheet: clipboard is empty" 1
+    paths+=("$clip")
+  fi
+
+  if ((${#paths[@]} == 0)); then
+    if delight_has_cmd omarchy-file-select; then
+      local sel
+      sel=$(omarchy-file-select --multiple) || delight_die "sheet: no files selected" 1
+      while IFS= read -r sel; do
+        [[ -n $sel ]] && paths+=("$sel")
+      done <<<"$sel"
+    else
+      delight_die "sheet: pass file paths or use --clipboard" 64
+    fi
+  fi
+
+  local abs=() p
+  for p in "${paths[@]}"; do
+    [[ $p == /* ]] || p=$(readlink -f -- "$p")
+    abs+=("$p")
+  done
+
+  local payload
+  payload=$(jq -cn --argjson paths "$(printf '%s\n' "${abs[@]}" | jq -Rsc 'split("\n") | map(select(length > 0))')" \
+    '{paths:$paths, targetsCommand:["delight","share","share-targets","--json"]}')
+  "$DELIGHT_ROOT/bin/delight" ui summon delight.share "$payload"
+}
+
+# --- receive watcher --------------------------------------------------------
+
+# Locate the LocalSend shared_preferences file: non-portable Linux profile, or
+# settings.json next to the localsend executable (portable mode).
+share_prefs_file() {
+  local exe
+  if [[ -f $SHARE_PREFS_FILE ]]; then
+    printf '%s\n' "$SHARE_PREFS_FILE"
+    return 0
+  fi
+  exe=$(command -v localsend 2>/dev/null || true)
+  if [[ -n $exe && -f $(dirname -- "$exe")/settings.json ]]; then
+    printf '%s\n' "$(dirname -- "$exe")/settings.json"
+    return 0
+  fi
+  printf '%s\n' "$SHARE_PREFS_FILE"
+}
+
+# New receive-history entries in <prefs-file> since the ids in $SHARE_SEEN_FILE.
+share_receive_new() {
+  local prefs="$1" entry id name sender path ismsg
+  [[ -f $prefs ]] || return 0
+  share_dir
+  touch -- "$SHARE_SEEN_FILE"
+  while IFS= read -r entry; do
+    [[ -n $entry ]] || continue
+    id=$(jq -r '.id // empty' <<<"$entry")
+    [[ -n $id ]] || continue
+    if grep -qxF -- "$id" "$SHARE_SEEN_FILE" 2>/dev/null; then
+      continue
+    fi
+    printf '%s\n' "$id" >>"$SHARE_SEEN_FILE"
+    name=$(jq -r '.fileName // "file"' <<<"$entry")
+    sender=$(jq -r '.senderAlias // "Unknown"' <<<"$entry")
+    path=$(jq -r '.path // empty' <<<"$entry")
+    ismsg=$(jq -r '.isMessage // false' <<<"$entry")
+    if [[ $ismsg == true ]]; then
+      delight_notify share "Message from $sender" "$name" -g "󰍡"
+    elif [[ -n $path ]]; then
+      delight_notify share "Received $name" "from $sender" -g "󰒖" --exec nautilus --select "$path"
+    else
+      delight_notify share "Received $name" "from $sender" -g "󰒖"
+    fi
+  done < <(jq -c '."flutter.ls_receive_history" // [] | .[] | fromjson? // .' "$prefs" 2>/dev/null)
+}
+
+module_watch-receive() {
+  local once=false prefs=""
+  while (($# > 0)); do
+    case "$1" in
+      --once) once=true ;;
+      --prefs)
+        shift
+        prefs="${1:-}"
+        ;;
+    esac
+    shift
+  done
+  [[ -z $prefs ]] && prefs=$(share_prefs_file)
+
+  if [[ $once == true ]]; then
+    share_receive_new "$prefs"
+    return 0
+  fi
+
+  [[ $(delight_config_get share notifyReceive 2>/dev/null || echo true) == "true" ]] || {
+    delight_log "share: notifyReceive is off; watcher idle"
+    exec sleep infinity
+  }
+
+  if ! pgrep -x localsend >/dev/null 2>&1; then
+    if delight_has_cmd localsend; then
+      setsid localsend --hidden >/dev/null 2>&1 &
+    else
+      delight_warn "share: localsend not installed; receive notifications need the app"
+    fi
+  fi
+
+  local dir
+  dir=$(dirname -- "$prefs")
+  mkdir -p -- "$dir"
+  [[ -f $prefs ]] || touch -- "$prefs"
+  share_receive_new "$prefs"
+  while inotifywait -qq -e close_write -e moved_to "$dir" >/dev/null 2>&1; do
+    share_receive_new "$prefs"
+  done
+  delight_die "share: inotifywait stopped watching $dir" 1
+}
+
+delight_module_main "$@"

@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "delight.share",
+  "name": "Delight Share Sheet",
+  "version": "0.1.0",
+  "description": "AirDrop-style share sheet backed by LocalSend discovery.",
+  "kinds": [
+    "overlay"
+  ],
+  "entryPoints": {
+    "overlay": "ShareSheet.qml"
+  }
+}

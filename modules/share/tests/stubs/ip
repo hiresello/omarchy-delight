@@ -1,0 +1,65 @@
+#!/bin/bash
+# share-module test stub: logs argv, behaviour driven by files in
+# $DELIGHT_STUB_STATE (e.g. localsend-to, iw-monitor, ips).
+name=$(basename -- "$0")
+printf '%s %s\n' "$name" "$*" >>"${DELIGHT_STUB_LOG:-/dev/null}"
+state=${DELIGHT_STUB_STATE:-/tmp}
+
+case "$name" in
+  localsend | localsend-cli)
+    if [[ " $* " == *" --help "* ]]; then
+      echo "Usage: $name send [options] <paths...>"
+      [[ -f $state/localsend-to ]] && echo "  --to <address>  send to a specific device"
+      exit 0
+    fi
+    [[ " $* " == *" send "* ]] && exit 0
+    exit 0
+    ;;
+  opendrop)
+    if [[ ${1:-} == "find" ]]; then
+      [[ -f $state/opendrop-peers ]] && cat -- "$state/opendrop-peers"
+      exit 0
+    fi
+    [[ ${1:-} == "send" ]] && exit 0
+    exit 0
+    ;;
+  iw)
+    if [[ ${1:-} == "list" ]]; then
+      if [[ -f $state/iw-monitor ]]; then
+        printf '\t* monitor\n'
+      else
+        printf '\t* managed\n\t* ap\n'
+      fi
+    fi
+    exit 0
+    ;;
+  ip)
+    # Print one fake interface when the test asked for it, else nothing.
+    if [[ -f $state/ips ]]; then
+      jq -cn '[{ifname:"wlan0",addr_info:[{family:"inet",local:(input),prefixlen:24}]}]' "$(cat -- "$state/ips")" 2>/dev/null \
+        || printf '[{"ifname":"wlan0","addr_info":[{"family":"inet","local":"%s","prefixlen":24}]}]' "$(head -1 "$state/ips")"
+    else
+      echo '[]'
+    fi
+    exit 0
+    ;;
+  curl)
+    exit 0
+    ;;
+  wl-paste)
+    [[ -f $state/clipboard ]] && cat -- "$state/clipboard"
+    exit 0
+    ;;
+  omarchy-file-select)
+    [[ -f $state/fileselect ]] && cat -- "$state/fileselect"
+    exit 0
+    ;;
+  inotifywait)
+    # --once tests never reach here; in a real loop bail out immediately.
+    exit 1
+    ;;
+  pgrep)
+    exit 1
+    ;;
+esac
+exit 0

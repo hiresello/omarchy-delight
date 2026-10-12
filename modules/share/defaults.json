@@ -1,0 +1,6 @@
+{
+  "enabled": false,
+  "airdrop": false,
+  "discoveryTimeout": 2,
+  "notifyReceive": true
+}
