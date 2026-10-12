@@ -1,0 +1,10 @@
+{
+  "enabled": false,
+  "preset": "ipad-11",
+  "orientation": "landscape",
+  "arrangement": "right",
+  "backend": "sunshine",
+  "custom": { "width": 2388, "height": 1668, "refresh": 60, "scale": 2 },
+  "sunshine": { "capture": "wlr", "encoder": "", "url": "https://localhost:47990" },
+  "hotkey": ""
+}

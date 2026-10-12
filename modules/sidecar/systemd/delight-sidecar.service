@@ -1,0 +1,14 @@
+[Unit]
+Description=Omarchy Delight Sidecar streaming server
+Documentation=https://github.com/hiresello/omarchy-delight/tree/main/modules/sidecar
+PartOf=delight.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/share/omarchy-delight/bin/delight sidecar serve
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=delight.target

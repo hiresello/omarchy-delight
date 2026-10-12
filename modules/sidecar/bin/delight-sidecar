@@ -1,0 +1,649 @@
+#!/bin/bash
+
+# Sidecar: use a tablet as a second display. Creates a headless Hyprland
+# output (DELIGHT-SIDECAR), places it next to the focused monitor and streams
+# it with Sunshine to Moonlight on the tablet (or Deskreen, view-only).
+
+set -euo pipefail
+
+DELIGHT_ROOT=$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../../.." && pwd)
+# shellcheck source=../../../lib/delight/delight.sh
+source "$DELIGHT_ROOT/lib/delight/delight.sh"
+# shellcheck source=../lib/sidecar.sh
+source "$DELIGHT_ROOT/modules/sidecar/lib/sidecar.sh"
+
+# shellcheck disable=SC2034 # read by lib/delight/module.sh
+DELIGHT_MODULE_ID=sidecar
+SIDECAR_UNIT="delight-sidecar.service"
+SIDECAR_RUN="$DELIGHT_RUNTIME_DIR/sidecar"
+SIDECAR_SESSION="$SIDECAR_RUN/session.json"
+SIDECAR_RULE="$SIDECAR_RUN/monitor.lua"
+SIDECAR_ARGS="$SIDECAR_RUN/sunshine.args"
+SIDECAR_PLACEMENT="$SIDECAR_RUN/placement"
+SIDECAR_CREDS="$DELIGHT_STATE_DIR/sidecar/sunshine-credentials"
+SIDECAR_HOTKEY="$DELIGHT_STATE_DIR/sidecar/hotkey"
+SIDECAR_SUNSHINE_STATE="${SIDECAR_SUNSHINE_STATE:-$HOME/.config/sunshine/sunshine_state.json}"
+SIDECAR_TCP_PORTS=(47984 47989 48010)
+SIDECAR_UDP_PORTS=(5353 47998 47999 48000 48002 48010)
+SIDECAR_MOONLIGHT_IOS="https://apps.apple.com/app/moonlight-game-streaming/id1000551566"
+SIDECAR_MOONLIGHT_ANDROID="https://play.google.com/store/apps/details?id=com.limelight"
+SIDECAR_DESKREEN_PORT=3131
+SIDECAR_ANCHOR=""
+
+sidecar_usage() {
+  cat <<USAGE
+Usage: delight sidecar <verb>
+
+  install [--deskreen] | uninstall | enable | disable | toggle | status [--json] | doctor
+  start | stop                      add / remove the tablet display (same as enable / disable)
+  open                              pairing + arrangement panel
+  pair <PIN> [client-name]          accept a Moonlight pairing request
+  pair --pending                    pending pairing requests (JSON)
+  credentials <user>                store Sunshine web UI credentials (password on stdin)
+  set <key> <value>                 preset | orientation | arrangement | backend | hotkey
+  presets                           list display presets (JSON)
+  info --json                       everything the panel shows
+USAGE
+}
+
+cfg() {
+  delight_config_get sidecar "$1" 2>/dev/null || true
+}
+
+hypr_ready() {
+  delight_hw_hyprland
+}
+
+monitors_json() {
+  hyprctl monitors -j 2>/dev/null || echo '[]'
+}
+
+output_present() {
+  jq -e --arg n "$SIDECAR_OUTPUT" 'any(.[]; .name == $n)' <<<"$(monitors_json)" >/dev/null
+}
+
+# hyprctl that fails unless Hyprland answers "ok".
+hypr() {
+  local out
+  if delight_dry; then
+    delight_dry_print hyprctl "$@"
+    return 0
+  fi
+  out=$(hyprctl "$@" 2>&1) || {
+    delight_warn "hyprctl $1: $out"
+    return 1
+  }
+  if [[ $out != ok* ]]; then
+    delight_warn "hyprctl $1: $out"
+    return 1
+  fi
+}
+
+session_get() {
+  [[ -f $SIDECAR_SESSION ]] || return 1
+  jq -r "$1 // empty" "$SIDECAR_SESSION"
+}
+
+sidecar_active() {
+  [[ -f $SIDECAR_SESSION ]] || return 1
+  if hypr_ready; then
+    output_present
+  fi
+}
+
+# The tile toggles the live display, not a persisted flag: a headless output
+# does not survive logout, so "enabled" is whether DELIGHT-SIDECAR exists now.
+delight_module_enabled() {
+  sidecar_active
+}
+
+current_mode() {
+  sidecar_mode "$(cfg preset)" "$(cfg orientation)" "$(cfg custom)"
+}
+
+unit_installed() {
+  delight_state_list sidecar units | grep -qx '"delight-sidecar.service"'
+}
+
+unit_running() {
+  systemctl --user is-active --quiet "$SIDECAR_UNIT" 2>/dev/null
+}
+
+# --- Monitor --------------------------------------------------------------
+
+apply_rule() {
+  local mode="$1" position="$2" lua
+  lua=$(sidecar_monitor_lua "$mode" "$position")
+  printf '%s\n' "$lua" | delight_write "$SIDECAR_RULE"
+  hypr eval "$lua"
+}
+
+wait_for_mode() {
+  local mode="$1" i
+  delight_dry && return 0
+  for ((i = 0; i < 20; i++)); do
+    if jq -e --arg n "$SIDECAR_OUTPUT" --argjson m "$mode" \
+      'any(.[]; .name == $n and .width == $m.width and .height == $m.height)' <<<"$(monitors_json)" >/dev/null; then
+      return 0
+    fi
+    sleep 0.1
+  done
+  delight_warn "$SIDECAR_OUTPUT did not switch to $(sidecar_mode_string "$mode")"
+  return 1
+}
+
+# wait_for_layout <layout-json>: true once the other monitors are back there.
+wait_for_layout() {
+  local layout="$1" i
+  for ((i = 0; i < 10; i++)); do
+    [[ $(sidecar_layout "$(monitors_json)") == "$layout" ]] && return 0
+    sleep 0.1
+  done
+  return 1
+}
+
+display_up() {
+  local monitors anchor side mode position layout
+  monitors=$(monitors_json)
+  layout=$(sidecar_layout "$monitors")
+  anchor=$(session_get .anchor || true)
+  if [[ -z $anchor ]] || ! jq -e --arg a "$anchor" 'any(.[]; .name == $a)' <<<"$monitors" >/dev/null; then
+    anchor=$(sidecar_anchor "$monitors")
+  fi
+  [[ -n $anchor ]] || delight_die "sidecar: no monitor to place the tablet next to"
+  side=$(cfg arrangement)
+  sidecar_valid_side "$side" || side=right
+  mode=$(current_mode) || delight_die "sidecar: unknown preset '$(cfg preset)'"
+  position=$(sidecar_position "$monitors" "$anchor" "$side" "$mode") || delight_die "sidecar: could not place the display"
+  [[ $(cat -- "$SIDECAR_PLACEMENT" 2>/dev/null) == auto ]] && position=$(sidecar_auto_position "$side")
+  # The rule goes in first so the output is born at the right mode.
+  apply_rule "$mode" "$position"
+  if ! jq -e --arg n "$SIDECAR_OUTPUT" 'any(.[]; .name == $n)' <<<"$monitors" >/dev/null; then
+    hypr output create headless "$SIDECAR_OUTPUT"
+  fi
+  wait_for_mode "$mode" || true
+  # Hyprland lays out auto-positioned monitors after explicit ones, so an
+  # explicit tablet position can shove a monitor that uses "auto" (Omarchy's
+  # default). If that happened, let Hyprland place the tablet on that edge.
+  if ! delight_dry && [[ $position != auto-* ]] && ! wait_for_layout "$layout"; then
+    printf 'auto\n' | delight_write "$SIDECAR_PLACEMENT"
+    apply_rule "$mode" "$(sidecar_auto_position "$side")"
+    wait_for_layout "$layout" || delight_warn "sidecar: other monitors moved when the tablet was added"
+  fi
+  hypr dispatch "$(sidecar_dispatch_focus_monitor "$anchor")" || true
+  SIDECAR_ANCHOR=$anchor
+}
+
+display_down() {
+  local monitors anchor target ws
+  monitors=$(monitors_json)
+  jq -e --arg n "$SIDECAR_OUTPUT" 'any(.[]; .name == $n)' <<<"$monitors" >/dev/null || return 0
+  anchor=$(session_get .anchor || true)
+  target=$(jq -r --arg a "$anchor" --arg n "$SIDECAR_OUTPUT" \
+    '(map(select(.name == $a)) + map(select(.name != $n))) | first | .name // empty' <<<"$monitors")
+  if [[ -n $target ]]; then
+    while IFS= read -r ws; do
+      [[ -n $ws ]] || continue
+      hypr dispatch "$(sidecar_dispatch_move_workspace "$ws" "$target")" || true
+    done < <(hyprctl workspaces -j 2>/dev/null | jq -r --arg n "$SIDECAR_OUTPUT" '.[] | select(.monitor == $n and .id > 0) | .name')
+  fi
+  hypr output remove "$SIDECAR_OUTPUT"
+  if [[ -n $target ]]; then
+    hypr dispatch "$(sidecar_dispatch_focus_monitor "$target")" || true
+  fi
+}
+
+# --- Streaming backends ---------------------------------------------------
+
+sunshine_prior() {
+  local service=false stray=false
+  if systemctl --user is-active --quiet sunshine.service 2>/dev/null; then
+    service=true
+  elif pgrep -x sunshine >/dev/null 2>&1; then
+    stray=true
+  fi
+  jq -cn --argjson s "$service" --argjson t "$stray" '{service: $s, stray: $t}'
+}
+
+# Sunshine can only stream one output per process, so the user's own instance
+# steps aside while the sidecar runs and comes back afterwards.
+sunshine_park() {
+  local prior="$1"
+  if [[ $(jq -r .service <<<"$prior") == "true" ]]; then
+    delight_run systemctl --user stop sunshine.service || true
+  fi
+  if [[ $(jq -r .stray <<<"$prior") == "true" ]]; then
+    delight_run pkill -x sunshine || true
+  fi
+}
+
+sunshine_restore() {
+  local prior="$1"
+  [[ -n $prior ]] || return 0
+  if [[ $(jq -r '.service // false' <<<"$prior") == "true" ]]; then
+    delight_run systemctl --user start sunshine.service || delight_warn "could not restart sunshine.service"
+  fi
+  if [[ $(jq -r '.stray // false' <<<"$prior") == "true" ]]; then
+    if delight_has_cmd uwsm-app; then
+      delight_run setsid -f uwsm-app -- sunshine >/dev/null 2>&1 || true
+    else
+      delight_run setsid -f sunshine >/dev/null 2>&1 || true
+    fi
+  fi
+}
+
+backend_start() {
+  local backend="$1"
+  if [[ $backend == "sunshine" ]]; then
+    sidecar_sunshine_args "$(cfg sunshine.capture)" "$(cfg sunshine.encoder)" | delight_write "$SIDECAR_ARGS"
+  fi
+  if unit_installed; then
+    delight_run systemctl --user restart "$SIDECAR_UNIT" || delight_warn "could not start $SIDECAR_UNIT"
+  fi
+}
+
+# --- Verbs ----------------------------------------------------------------
+
+sidecar_start() {
+  local backend anchor prior='{"service":false,"stray":false}' mode side
+  delight_is_installed sidecar || delight_die "sidecar: run 'delight sidecar install' first" 3
+  hypr_ready || delight_die "sidecar: needs a running Hyprland session" 2
+  backend=$(cfg backend)
+  if [[ -f $SIDECAR_SESSION ]]; then
+    prior=$(jq -c '.sunshine // {service:false,stray:false}' "$SIDECAR_SESSION")
+  elif [[ $backend == "sunshine" ]]; then
+    prior=$(sunshine_prior)
+    sunshine_park "$prior"
+  fi
+  display_up
+  anchor=$SIDECAR_ANCHOR
+  mode=$(current_mode)
+  side=$(cfg arrangement)
+  jq -n --arg anchor "$anchor" --arg side "$side" --arg preset "$(cfg preset)" --arg backend "$backend" \
+    --argjson mode "$mode" --argjson sunshine "$prior" \
+    '{anchor: $anchor, side: $side, preset: $preset, mode: $mode, backend: $backend, sunshine: $sunshine}' \
+    | delight_write "$SIDECAR_SESSION"
+  backend_start "$backend"
+  if [[ $backend == "deskreen" ]]; then
+    delight_notify sidecar "Sidecar (view-only)" "Open $(deskreen_url) on the tablet"
+  fi
+}
+
+sidecar_stop() {
+  local prior=""
+  [[ -f $SIDECAR_SESSION ]] && prior=$(jq -c '.sunshine // empty' "$SIDECAR_SESSION")
+  if unit_installed; then
+    delight_run systemctl --user stop "$SIDECAR_UNIT" >/dev/null 2>&1 || true
+  fi
+  if hypr_ready; then
+    display_down
+  fi
+  sunshine_restore "$prior"
+  delight_rm "$SIDECAR_RULE"
+  delight_rm "$SIDECAR_ARGS"
+  delight_rm "$SIDECAR_PLACEMENT"
+  delight_rm "$SIDECAR_SESSION"
+}
+
+module_enable() {
+  sidecar_start
+}
+
+module_disable() {
+  sidecar_stop
+}
+
+module_start() {
+  delight_module_main enable
+}
+
+module_stop() {
+  delight_module_main disable
+}
+
+# Runs inside delight-sidecar.service.
+module_serve() {
+  local backend args=()
+  backend=$(cfg backend)
+  case "$backend" in
+    sunshine)
+      [[ -f $SIDECAR_ARGS ]] && mapfile -t args <"$SIDECAR_ARGS"
+      exec sunshine "${args[@]}"
+      ;;
+    deskreen) exec deskreen ;;
+    *) exec sleep infinity ;;
+  esac
+}
+
+sunshine_has_creds() {
+  [[ -f $SIDECAR_SUNSHINE_STATE ]] && jq -e '.username // empty | length > 0' "$SIDECAR_SUNSHINE_STATE" >/dev/null 2>&1
+}
+
+creds_known() {
+  [[ -f $SIDECAR_CREDS ]] || [[ -n ${DELIGHT_SIDECAR_SUNSHINE_USER:-} && -n ${DELIGHT_SIDECAR_SUNSHINE_PASSWORD:-} ]]
+}
+
+# curl config on stdin keeps the password out of argv.
+sunshine_api() {
+  local method="$1" path="$2" body="${3:-}" user pass url
+  if [[ -n ${DELIGHT_SIDECAR_SUNSHINE_USER:-} ]]; then
+    user=$DELIGHT_SIDECAR_SUNSHINE_USER
+    pass=${DELIGHT_SIDECAR_SUNSHINE_PASSWORD:-}
+  elif [[ -f $SIDECAR_CREDS ]]; then
+    user=$(jq -r .user "$SIDECAR_CREDS")
+    pass=$(jq -r .password "$SIDECAR_CREDS")
+  else
+    delight_die "sidecar: Sunshine credentials unknown (run: delight sidecar credentials <user>)" 3
+  fi
+  url="$(cfg sunshine.url)$path"
+  {
+    printf 'user = "%s:%s"\n' "${user//\"/\\\"}" "${pass//\"/\\\"}"
+    printf 'url = "%s"\n' "$url"
+  } | if [[ -n $body ]]; then
+    curl -sSk --fail-with-body -K - -X "$method" -H 'Content-Type: application/json' --data-binary "$body"
+  else
+    curl -sSk --fail-with-body -K - -X "$method"
+  fi
+}
+
+module_pair() {
+  local pin="${1:-}" name="${2:-}" pending payload result
+  case "$pin" in
+    "") module_open ;;
+    --pending)
+      sunshine_api GET /api/pin 2>/dev/null | jq -c '.pairings // []' || echo '[]'
+      ;;
+    *)
+      sidecar_valid_pin "$pin" || delight_die "sidecar: the PIN is the 4 digits Moonlight shows" 64
+      pending=$(sunshine_api GET /api/pin 2>/dev/null || echo null)
+      jq -e . >/dev/null 2>&1 <<<"$pending" || pending=null
+      [[ -n $name ]] || name=$(jq -r '(.pairings // []) | last | .name // "Tablet"' <<<"$pending" 2>/dev/null || echo Tablet)
+      [[ -n $name ]] || name=Tablet
+      payload=$(sidecar_pin_payload "$pending" "$pin" "$name")
+      if delight_dry; then
+        delight_dry_print POST /api/pin "$payload"
+        return 0
+      fi
+      result=$(sunshine_api POST /api/pin "$payload") || delight_die "sidecar: Sunshine rejected the request: $result"
+      if [[ $(jq -r '.status // false' <<<"$result") == "true" ]]; then
+        delight_notify sidecar "Tablet paired" "$name can now connect with Moonlight"
+        echo "paired $name"
+      else
+        delight_die "sidecar: pairing failed (wrong PIN, or no Moonlight request waiting)" 1
+      fi
+      ;;
+  esac
+}
+
+module_credentials() {
+  local user="${1:-}" pass
+  [[ -n $user ]] || delight_die "usage: delight sidecar credentials <user>  (password on stdin)" 64
+  IFS= read -r pass || true
+  [[ -n $pass ]] || delight_die "sidecar: empty password" 64
+  jq -cn --arg u "$user" --arg p "$pass" '{user: $u, password: $p}' | delight_write "$SIDECAR_CREDS" 600
+}
+
+# Fresh Sunshine installs have no web UI login; give it one Delight can use.
+sunshine_bootstrap_creds() {
+  local pass
+  delight_dry && return 0
+  creds_known && return 0
+  sunshine_has_creds && return 0
+  delight_has_cmd sunshine || return 0
+  pass=$(head -c 18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9')
+  if sunshine --creds delight "$pass" >/dev/null 2>&1; then
+    jq -cn --arg p "$pass" '{user: "delight", password: $p}' | delight_write "$SIDECAR_CREDS" 600
+    delight_state_flag_set sidecar sunshine_creds_created true
+    if systemctl --user is-active --quiet sunshine.service 2>/dev/null; then
+      delight_run systemctl --user restart sunshine.service || true
+    fi
+  fi
+}
+
+hotkey_sync() {
+  local keys
+  keys=$(cfg hotkey)
+  if [[ -n $keys ]]; then
+    printf '%s\n' "$keys" | delight_write "$SIDECAR_HOTKEY"
+  else
+    delight_rm "$SIDECAR_HOTKEY"
+  fi
+}
+
+module_set() {
+  local key="${1:-}" value="${2:-}"
+  case "$key" in
+    preset)
+      [[ $value == "custom" ]] || jq -e --arg p "$value" 'has($p)' <<<"$SIDECAR_PRESETS" >/dev/null \
+        || delight_die "sidecar: unknown preset '$value' (see: delight sidecar presets)" 64
+      ;;
+    orientation) [[ $value == "landscape" || $value == "portrait" ]] || delight_die "sidecar: orientation is landscape or portrait" 64 ;;
+    arrangement) sidecar_valid_side "$value" || delight_die "sidecar: arrangement is one of: ${SIDECAR_SIDES[*]}" 64 ;;
+    backend) [[ $value == "sunshine" || $value == "deskreen" ]] || delight_die "sidecar: backend is sunshine or deskreen" 64 ;;
+    hotkey) ;;
+    *) delight_die "usage: delight sidecar set preset|orientation|arrangement|backend|hotkey <value>" 64 ;;
+  esac
+  delight_config_set sidecar "$key" "$value"
+  if [[ $key == "hotkey" ]]; then
+    hotkey_sync
+    if hypr_ready; then
+      delight_run hyprctl reload >/dev/null || true
+    fi
+  elif [[ $key == "backend" ]] && sidecar_active; then
+    sidecar_stop
+    sidecar_start
+  elif sidecar_active; then
+    display_up
+    jq --argjson m "$(current_mode)" --arg s "$(cfg arrangement)" --arg p "$(cfg preset)" \
+      '.mode = $m | .side = $s | .preset = $p' "$SIDECAR_SESSION" | delight_write "$SIDECAR_SESSION"
+  fi
+  delight_module_publish
+}
+
+module_presets() {
+  sidecar_presets_json
+}
+
+module_open() {
+  delight_has_cmd omarchy-shell || {
+    module_info --json | jq .
+    return 0
+  }
+  "$DELIGHT_ROOT/bin/delight" ui summon delight.sidecar "$(module_info --json)"
+}
+
+lan_addresses() {
+  ip -4 -o addr show scope global 2>/dev/null | awk '{split($4, a, "/"); print a[1]}' | jq -Rsc 'split("\n") | map(select(. != ""))'
+}
+
+deskreen_url() {
+  local ip
+  ip=$(lan_addresses | jq -r 'first // "localhost"')
+  printf 'http://%s:%s\n' "$ip" "$SIDECAR_DESKREEN_PORT"
+}
+
+qr_png() {
+  local name="$1" text="$2" out="$SIDECAR_RUN/qr-$1.png"
+  delight_has_cmd qrencode || return 0
+  delight_dry && return 0
+  if [[ ! -f $out ]]; then
+    mkdir -p -- "$SIDECAR_RUN"
+    qrencode -s 8 -m 2 -o "$out" -- "$text" 2>/dev/null || return 0
+  fi
+  [[ -n $name ]] && printf '%s\n' "$out"
+}
+
+module_info() {
+  local status pending='[]' qr
+  status=$(module_status)
+  if creds_known && sidecar_active && [[ $(cfg backend) == "sunshine" ]]; then
+    pending=$(module_pair --pending 2>/dev/null || echo '[]')
+  fi
+  qr=$(jq -cn --arg ios "$(qr_png ios "$SIDECAR_MOONLIGHT_IOS")" --arg android "$(qr_png android "$SIDECAR_MOONLIGHT_ANDROID")" \
+    --arg deskreen "$(if [[ $(cfg backend) == "deskreen" ]]; then qr_png deskreen "$(deskreen_url)"; fi)" \
+    '{ios: $ios, android: $android, deskreen: $deskreen}')
+  jq -cn --argjson status "$status" --argjson presets "$(sidecar_presets_json)" --argjson pending "$pending" \
+    --argjson hosts "$(lan_addresses)" --argjson qr "$qr" --argjson credentials "$(creds_known && echo true || echo false)" \
+    --arg preset "$(cfg preset)" --arg orientation "$(cfg orientation)" --arg arrangement "$(cfg arrangement)" \
+    --arg backend "$(cfg backend)" --arg deskreen "$(deskreen_url)" \
+    --arg ios "$SIDECAR_MOONLIGHT_IOS" --arg android "$SIDECAR_MOONLIGHT_ANDROID" '{
+      status: $status, presets: $presets, sides: ["left", "right", "above", "below"],
+      config: {preset: $preset, orientation: $orientation, arrangement: $arrangement, backend: $backend},
+      hosts: $hosts, pending: $pending, credentials: $credentials, qr: $qr,
+      moonlight: {ios: $ios, android: $android}, deskreenUrl: $deskreen
+    }'
+}
+
+module_install() {
+  local id=sidecar dir port backend deskreen=false
+  [[ ${1:-} == "--deskreen" ]] && deskreen=true
+  [[ $(cfg backend) == "deskreen" ]] && deskreen=true
+  dir=$(delight_module_dir "$id")
+  delight_state_init "$id"
+  if [[ -z $(delight_state_flag_get "$id" sunshine_preexisting) ]]; then
+    if delight_pkg_present sunshine || delight_has_cmd sunshine; then
+      delight_state_flag_set "$id" sunshine_preexisting true
+    else
+      delight_state_flag_set "$id" sunshine_preexisting false
+    fi
+  fi
+  if ! delight_pkg_present sunshine && ! delight_has_cmd sunshine; then
+    if delight_has_cmd omarchy-install-service-sunshine; then
+      delight_run omarchy-install-service-sunshine || delight_die "$id: omarchy-install-service-sunshine failed"
+      delight_state_flag_set "$id" sunshine_via_omarchy true
+    else
+      backend=aur
+      delight_has_cmd omarchy-pkg-add && backend=repo
+      delight_pkg_add "$id" "$backend" sunshine
+      for port in "${SIDECAR_TCP_PORTS[@]}"; do delight_ufw_allow "$id" tcp "$port"; done
+      for port in "${SIDECAR_UDP_PORTS[@]}"; do delight_ufw_allow "$id" udp "$port"; done
+    fi
+  fi
+  delight_pkg_add "$id" repo qrencode
+  if [[ $deskreen == "true" ]]; then
+    delight_pkg_add "$id" aur deskreen
+  fi
+  delight_unit_install "$id" "$dir/systemd/$SIDECAR_UNIT"
+  delight_systemd_reload
+  delight_plugin_install "$id" "$dir/plugin"
+  sunshine_bootstrap_creds
+  hotkey_sync
+}
+
+module_uninstall() {
+  local id=sidecar
+  if [[ $(delight_state_flag_get "$id" sunshine_via_omarchy) == "true" ]] && delight_has_cmd omarchy-remove-service-sunshine; then
+    delight_run omarchy-remove-service-sunshine || delight_warn "$id: omarchy-remove-service-sunshine failed"
+  fi
+  delight_rm "$SIDECAR_RUN"
+  delight_module_default_uninstall
+}
+
+module_status() {
+  local name="Sidecar" icon="󰓶" mode label side backend subtitle actions
+  if ! delight_is_installed sidecar; then
+    delight_status_json --id sidecar --state needs-setup --title "$name" --subtitle "Not installed" --icon "$icon" \
+      --actions '[{"label":"Install","command":["delight","sidecar","install"]}]'
+    return 0
+  fi
+  if ! hypr_ready; then
+    delight_status_json --id sidecar --state unsupported --title "$name" --icon "$icon" --toggle false \
+      --reason "Needs a running Hyprland session"
+    return 0
+  fi
+  backend=$(cfg backend)
+  if [[ $backend == "sunshine" ]] && ! delight_has_cmd sunshine; then
+    delight_status_json --id sidecar --state needs-setup --title "$name" --subtitle "Sunshine not installed" --icon "$icon" \
+      --actions '[{"label":"Install","command":["delight","sidecar","install"]}]'
+    return 0
+  fi
+  mode=$(current_mode 2>/dev/null || echo '{"label":"Custom"}')
+  label=$(jq -r .label <<<"$mode")
+  side=$(cfg arrangement)
+  actions='[{"label":"Pair & arrange","command":["delight","sidecar","open"]}]'
+  if sidecar_active; then
+    subtitle="$label, $side of $(session_get .anchor || echo display)"
+    [[ $backend == "deskreen" ]] && subtitle+=" (view-only)"
+    delight_status_json --id sidecar --state on --title "$name" --subtitle "$subtitle" --icon "$icon" --actions "$actions"
+  else
+    subtitle="$label, $side"
+    [[ $backend == "deskreen" ]] && subtitle+=" (view-only)"
+    delight_status_json --id sidecar --state off --title "$name" --subtitle "$subtitle" --icon "$icon" --actions "$actions"
+  fi
+}
+
+hypr_version_ok() {
+  local v
+  v=$(hyprctl version -j 2>/dev/null | jq -r '.version // .tag // empty' | sed 's/^v//')
+  [[ -z $v ]] && return 0
+  local major minor
+  IFS=. read -r major minor _ <<<"$v"
+  ((major > 0 || ${minor:-0} >= 41))
+}
+
+module_doctor() {
+  local rc=0 unsupported=false needs_user=false fixable=false backend
+  backend=$(cfg backend)
+  if ! hypr_ready; then
+    echo "unsupported: Hyprland is not running (headless outputs need Hyprland)"
+    return 2
+  fi
+  if hypr_version_ok; then
+    echo "ok: Hyprland supports headless outputs (hyprctl output create headless)"
+  else
+    echo "unsupported: Hyprland too old for named headless outputs (need 0.41+)"
+    unsupported=true
+  fi
+  if [[ $backend == "sunshine" ]]; then
+    if delight_has_cmd sunshine; then
+      echo "ok: Sunshine installed"
+      if unit_running || systemctl --user is-active --quiet sunshine.service 2>/dev/null || pgrep -x sunshine >/dev/null 2>&1; then
+        echo "ok: Sunshine running"
+      else
+        echo "info: Sunshine not running (starts with: delight sidecar start)"
+      fi
+      if creds_known; then
+        echo "ok: Sunshine web UI credentials stored for pairing"
+      else
+        echo "action: store Sunshine web UI credentials for PIN pairing: delight sidecar credentials <user> (password on stdin)"
+        needs_user=true
+      fi
+    else
+      echo "missing: Sunshine (run: delight sidecar install)"
+      fixable=true
+    fi
+  else
+    if delight_has_cmd deskreen; then
+      echo "ok: Deskreen installed (view-only, no input)"
+    else
+      echo "missing: Deskreen (run: delight sidecar install --deskreen)"
+      fixable=true
+    fi
+  fi
+  if [[ -e /proc/driver/nvidia/version ]] || delight_has_cmd nvidia-smi; then
+    echo "ok: NVENC available (NVIDIA driver loaded)"
+  elif delight_has_cmd vainfo && vainfo 2>/dev/null | grep -q 'VAEntrypointEncSlice'; then
+    echo "ok: VAAPI hardware encoding available"
+  elif compgen -G "/dev/dri/renderD*" >/dev/null; then
+    echo "info: GPU render node present; install libva-utils and run vainfo to confirm VAAPI encoding"
+  else
+    echo "warn: no hardware encoder found; Sunshine will fall back to software encoding (higher latency)"
+  fi
+  if ! delight_has_cmd qrencode; then
+    echo "missing: qrencode (QR codes in the pairing panel; run: delight sidecar install)"
+    fixable=true
+  fi
+  if [[ $unsupported == "true" ]]; then
+    rc=2
+  elif [[ $fixable == "true" ]]; then
+    rc=1
+  elif [[ $needs_user == "true" ]]; then
+    rc=3
+  fi
+  return "$rc"
+}
+
+case "${1:-}" in
+  "" | help | -h | --help) sidecar_usage ;;
+  *) delight_module_main "$@" ;;
+esac

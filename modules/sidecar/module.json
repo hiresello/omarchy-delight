@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "id": "sidecar",
+  "name": "Sidecar",
+  "icon": "󰓶",
+  "description": "Use a tablet as a second display: a virtual Hyprland output streamed with Sunshine to Moonlight (or Deskreen, view-only).",
+  "packages": { "repo": [], "aur": [] },
+  "units": ["delight-sidecar.service"],
+  "firewall": [],
+  "capabilities": ["hyprland", "network"],
+  "provides": { "shareTargets": false, "devices": false },
+  "plugin": "plugin",
+  "menu": [
+    { "id": "toggle", "label": "Toggle tablet display", "icon": "󰓶", "action": "delight sidecar toggle" },
+    { "id": "open", "label": "Pair & arrange tablet", "icon": "󰓶", "action": "delight sidecar open" }
+  ]
+}

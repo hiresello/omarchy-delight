@@ -1,0 +1,3 @@
+#!/bin/bash
+printf 'pgrep %s\n' "$*" >>"${DELIGHT_STUB_LOG:-/dev/null}"
+[[ -f ${DELIGHT_STUB_STATE:-/tmp}/stray-${*: -1} ]]

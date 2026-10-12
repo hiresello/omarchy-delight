@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "delight.sidecar",
+  "name": "Delight Sidecar",
+  "version": "0.1.0",
+  "description": "Tablet as a second display: pair Moonlight, pick a preset and arrangement.",
+  "kinds": [
+    "panel"
+  ],
+  "entryPoints": {
+    "panel": "SidecarPanel.qml"
+  }
+}
