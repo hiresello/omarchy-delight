@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "delight.camera",
+  "name": "Delight Continuity Camera",
+  "version": "0.1.0",
+  "description": "Connect a phone as a V4L2 webcam.",
+  "kinds": ["panel"],
+  "entryPoints": {
+    "panel": "CameraPanel.qml"
+  }
+}

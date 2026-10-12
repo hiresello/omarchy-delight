@@ -1,0 +1,12 @@
+[Unit]
+Description=Continuity Camera device lifetime
+PartOf=delight.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -ec 'mkdir -p "%t/omarchy-delight/camera-device"; rm -f "%t/omarchy-delight/camera-device/want"; touch "%t/omarchy-delight/camera-device/want"'
+ExecStop=/bin/sh -ec 'rm -f "%t/omarchy-delight/camera-device/want"'
+
+[Install]
+WantedBy=delight.target

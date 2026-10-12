@@ -1,0 +1,3 @@
+#!/bin/bash
+export DELIGHT_STUB_NAME=avahi-browse
+exec "$(dirname -- "${BASH_SOURCE[0]}")/_camera_stub" "$@"
