@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# Test double for the `delight` dispatcher: logs argv, answers read verbs from fixtures.
+
+set -euo pipefail
+here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+printf '%s\n' "$*" >>"${DELIGHT_STUB_LOG:?}"
+case "$*" in
+  "status --json") jq -cs . "${DELIGHT_STUB_FALLBACK:-/dev/null}" 2>/dev/null || echo '[]' ;;
+  "devices --json") cat "$here/devices.json" ;;
+  list) cat "${DELIGHT_STUB_LIST:-$here/list.tsv}" ;;
+  *) : ;;
+esac

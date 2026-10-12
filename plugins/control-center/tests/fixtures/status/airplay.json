@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "id": "airplay",
+  "state": "on",
+  "title": "AirPlay",
+  "subtitle": "Receiving as Desk",
+  "icon": "󰑈",
+  "toggle": true,
+  "actions": [
+    {
+      "label": "AirPlay settings",
+      "command": [
+        "delight",
+        "airplay",
+        "settings"
+      ]
+    }
+  ],
+  "devices": [],
+  "reason": null,
+  "updated": "2026-10-12T09:00:00Z"
+}

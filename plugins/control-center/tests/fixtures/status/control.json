@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "id": "control",
+  "state": "off",
+  "title": "Universal Control",
+  "subtitle": "Mouse & keyboard sharing",
+  "icon": "󰍽",
+  "toggle": true,
+  "actions": [],
+  "devices": [],
+  "reason": null,
+  "updated": "2026-10-12T09:00:00Z"
+}

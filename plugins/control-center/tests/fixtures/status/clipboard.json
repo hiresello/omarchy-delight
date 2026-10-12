@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "id": "clipboard",
+  "state": "on",
+  "title": "Universal Clipboard",
+  "subtitle": "Synced with 2 devices",
+  "icon": "󰅌",
+  "toggle": true,
+  "actions": [],
+  "devices": [],
+  "reason": null,
+  "updated": "2026-10-12T09:00:00Z"
+}

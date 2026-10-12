@@ -1,0 +1,37 @@
+[
+  {
+    "id": "pixel",
+    "name": "Pixel 9",
+    "kind": "phone",
+    "transport": "bluetooth",
+    "connected": true,
+    "rssi": -52,
+    "module": "drop"
+  },
+  {
+    "id": "ipad",
+    "name": "iPad Air",
+    "kind": "tablet",
+    "transport": "wifi",
+    "connected": false,
+    "rssi": -70,
+    "module": "sidecar"
+  },
+  {
+    "id": "tv",
+    "name": "Living Room TV",
+    "kind": "tv",
+    "transport": "lan",
+    "connected": false,
+    "module": "airplay"
+  },
+  {
+    "id": "buds",
+    "name": "Pixel Buds",
+    "kind": "headphones",
+    "transport": "bluetooth",
+    "connected": true,
+    "rssi": -60,
+    "module": "drop"
+  }
+]

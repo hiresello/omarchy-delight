@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "id": "sync",
+  "state": "off",
+  "title": "Sync",
+  "subtitle": "Last synced 10 min ago",
+  "icon": "󰓦",
+  "toggle": false,
+  "actions": [
+    {
+      "label": "Sync now",
+      "command": [
+        "delight",
+        "sync",
+        "run"
+      ]
+    }
+  ],
+  "devices": [],
+  "reason": null,
+  "updated": "2026-10-12T09:00:00Z"
+}

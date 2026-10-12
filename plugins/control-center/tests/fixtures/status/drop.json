@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "id": "drop",
+  "state": "busy",
+  "title": "Drop",
+  "subtitle": "Receiving 2 files…",
+  "icon": "󰀂",
+  "toggle": true,
+  "actions": [],
+  "devices": [],
+  "reason": null,
+  "updated": "2026-10-12T09:00:00Z"
+}

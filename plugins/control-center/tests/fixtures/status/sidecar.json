@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "id": "sidecar",
+  "state": "unsupported",
+  "title": "Sidecar",
+  "subtitle": "",
+  "icon": "󰍹",
+  "toggle": true,
+  "actions": [],
+  "devices": [],
+  "reason": "No spare display output on this GPU",
+  "updated": "2026-10-12T09:00:00Z"
+}
