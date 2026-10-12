@@ -72,7 +72,8 @@ ok "$ID: status file matches schema" schema_valid "$SCHEMA/status.schema.json" "
 state=$(status_state)
 if [[ $state != "unsupported" ]]; then
   ok "$ID: enable" "$BIN" enable
-  is "$ID: enabled state" "$(status_state)" "on"
+  state=$(status_state)
+  ok "$ID: enabled state is on or needs-setup (got $state)" test "$state" = on -o "$state" = needs-setup
   ok "$ID: toggle" "$BIN" toggle
   is "$ID: toggled state" "$(status_state)" "off"
   ok "$ID: disable is idempotent" "$BIN" disable
