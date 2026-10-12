@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# Run a host script inside the VM as the desktop user, with the Wayland
+# session's environment, in the installed Delight checkout ($DELIGHT_ROOT).
+# Exits with the script's status. Screenshots and logs it saves through
+# vm_screenshot / vm_artifact land in vm/out/<timestamp>/.
+#
+#   vm/run modules/share/tests/vm-share.sh [args...]
+
+set -euo pipefail
+# shellcheck source=vm/lib/host.sh
+source "$(dirname -- "${BASH_SOURCE[0]}")/lib/host.sh"
+
+(($# > 0)) || vm_die "usage: vm/run <script> [args...]" 2
+vm_require_running
+vm_out_init
+vm_push_lib
+rc=0
+vm_run_script "$@" || rc=$?
+vm_log "artifacts: $VM_OUT"
+exit "$rc"

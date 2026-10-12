@@ -1,0 +1,79 @@
+#!/bin/bash
+
+# Install Omarchy Delight in the VM from a git ref or a local directory.
+# Uninstalls any earlier install first, so this always lands one clean tree at
+# ~/.local/src/omarchy-delight and runs its install.sh as the desktop user.
+# Before the first install it keeps pristine copies of the files Delight
+# touches in ~/.local/state/delight-vm/pristine/ for byte-for-byte checks.
+#
+#   vm/install-delight main          a branch, tag or commit (fetched from origin)
+#   vm/install-delight .             this checkout, uncommitted changes included
+
+set -euo pipefail
+# shellcheck source=vm/lib/host.sh
+source "$(dirname -- "${BASH_SOURCE[0]}")/lib/host.sh"
+
+(($# == 1)) || vm_die "usage: vm/install-delight <git-ref|path>" 2
+src=$1
+vm_require_running
+
+tarball=$(mktemp)
+trap 'rm -f "$tarball"' EXIT
+
+if [[ -d $src ]]; then
+  src=$(realpath "$src")
+  [[ -x $src/install.sh ]] || vm_die "$src is not an Omarchy Delight checkout"
+  if git -C "$src" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    # Tracked and untracked files, minus ignored ones (vm/out) and deletions.
+    (cd "$src" && git ls-files -z -co --exclude-standard) | while IFS= read -r -d '' f; do
+      if [[ -e $src/$f || -L $src/$f ]]; then printf '%s\0' "$f"; fi
+    done | tar -C "$src" --null -T - -czf "$tarball"
+    label="$src @ $(git -C "$src" describe --always --dirty 2>/dev/null || echo unknown)"
+  else
+    tar -C "$src" --exclude=./.git --exclude=./vm/out -czf "$tarball" .
+    label=$src
+  fi
+else
+  if git -C "$VM_REPO" fetch -q origin "$src" 2>/dev/null; then
+    commit=$(git -C "$VM_REPO" rev-parse FETCH_HEAD)
+  else
+    commit=$(git -C "$VM_REPO" rev-parse --verify --quiet "$src^{commit}") \
+      || vm_die "$src is neither a directory nor a git ref"
+  fi
+  git -C "$VM_REPO" archive --format=tar.gz -o "$tarball" "$commit"
+  label="$src @ $commit"
+fi
+
+vm_log "installing $label"
+vm_push_lib
+vm_sh "cat >$VM_GUEST_DIR/delight.tar.gz" <"$tarball"
+vm_guest "DELIGHT_VM_LABEL=$(printf %q "$label") bash -s" <<'GUEST'
+set -euo pipefail
+dest=$HOME/.local/src/omarchy-delight
+touched=(.config/hypr/hyprland.lua .config/omarchy/extensions/omarchy-menu.jsonc .config/omarchy/hooks/theme-set.d/50-omarchy-delight)
+
+if [[ ! -d $DELIGHT_VM_PRISTINE ]]; then
+  mkdir -p "$DELIGHT_VM_PRISTINE"
+  for f in "${touched[@]}"; do
+    if [[ -e $HOME/$f ]]; then
+      mkdir -p "$DELIGHT_VM_PRISTINE/$(dirname "$f")"
+      cp -a "$HOME/$f" "$DELIGHT_VM_PRISTINE/$f"
+    else
+      echo "$f" >>"$DELIGHT_VM_PRISTINE/ABSENT"
+    fi
+  done
+fi
+
+if [[ -x $HOME/.local/share/omarchy-delight/uninstall.sh ]]; then
+  echo "vm: uninstalling the previous install" >&2
+  "$HOME/.local/share/omarchy-delight/uninstall.sh"
+fi
+rm -rf "$dest"
+mkdir -p "$dest"
+tar -C "$dest" -xzf /tmp/delight-vm/delight.tar.gz
+cd "$dest"
+./install.sh
+printf '%s\n' "$DELIGHT_VM_LABEL" >"$DELIGHT_VM_STATE/installed"
+delight list || true
+GUEST
+vm_log "installed $label"

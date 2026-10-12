@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# Save, list or delete internal snapshots (RAM and disk) of the running VM.
+#
+#   vm/snapshot NAME            save the VM as it is now (overwrites NAME)
+#   vm/snapshot --list          list snapshots
+#   vm/snapshot --delete NAME   delete one
+#
+# Restore with vm/up --snapshot NAME. "fresh" is the untouched desktop vm/up made.
+
+set -euo pipefail
+# shellcheck source=vm/lib/host.sh
+source "$(dirname -- "${BASH_SOURCE[0]}")/lib/host.sh"
+
+case ${1:-} in
+  '' | -h | --help)
+    sed -n '3,9p' "$0"
+    [[ -n ${1:-} ]]
+    ;;
+  --list) vm_snapshots ;;
+  --delete)
+    vm_require_running
+    vm_snapshot_delete "${2:?--delete needs a name}"
+    ;;
+  -*) vm_die "unknown argument: $1" 2 ;;
+  *)
+    vm_require_running
+    [[ $1 =~ ^[A-Za-z0-9._-]+$ ]] || vm_die "snapshot names are letters, digits, . _ -"
+    vm_snapshot_save "$1"
+    ;;
+esac

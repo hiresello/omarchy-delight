@@ -1,0 +1,93 @@
+#!/bin/bash
+
+# Start the Omarchy test VM in its "fresh" snapshot, creating it on first use.
+#
+#   vm/up                    restore "fresh" (boot into it if the VM is off)
+#   vm/up --snapshot NAME    restore NAME instead
+#   vm/up --keep             start it if needed, but keep its current state
+#   vm/up --new              throw the machine away and build "fresh" again
+
+set -euo pipefail
+# shellcheck source=vm/lib/host.sh
+source "$(dirname -- "${BASH_SOURCE[0]}")/lib/host.sh"
+
+target=$VM_FRESH keep=0 new=0
+while (($# > 0)); do
+  case $1 in
+    --snapshot)
+      target=${2:?--snapshot needs a name}
+      shift
+      ;;
+    --keep) keep=1 ;;
+    --new) new=1 ;;
+    -h | --help)
+      sed -n '3,8p' "$0"
+      exit 0
+      ;;
+    *) vm_die "unknown argument: $1" 2 ;;
+  esac
+  shift
+done
+
+vm_need qemu-system-x86_64 qemu-img ssh ssh-keygen curl jq sha256sum base64
+vm_kvm_ok || vm_die "/dev/kvm is missing or not read-write for $(id -un); the VM needs KVM" 2
+
+t0=$(vm_secs)
+vm_image_resolve
+if ((new)) || [[ ! -f $VM_MACHINE/disk.qcow2 || $(vm_machine_image) != "$VM_IMAGE_DIR" ]]; then
+  vm_stop
+  vm_create
+fi
+
+# First boot of a new machine: wait for the desktop, make it testable, save it.
+prepare_fresh() {
+  vm_log "waiting for the desktop session"
+  vm_push_lib
+  {
+    cat "$VM_DIR/lib/guest.sh"
+    cat <<'GUEST'
+set -euo pipefail
+timeout 180 systemctl is-system-running --wait >/dev/null || true
+vm_session_env
+pgrep -x Hyprland >/dev/null || { echo "vm: no Hyprland session" >&2; exit 1; }
+for _ in $(seq 1 60); do pgrep -f quickshell >/dev/null && break; sleep 1; done
+# Tests install packages through sudo with nobody at a prompt.
+vm_sudo sh -c "umask 0337 && echo '$USER ALL=(ALL) NOPASSWD: ALL' >/etc/sudoers.d/90-delight-vm"
+sudo -n true
+# The sealed image ships without package databases.
+sudo -n pacman -Sy --noconfirm >/dev/null 2>&1 || echo "vm: pacman -Sy failed; module package installs will fail" >&2
+# No screensaver or lock screen in the middle of a test run.
+omarchy toggle idle stay-awake >/dev/null 2>&1 || true
+mkdir -p "$DELIGHT_VM_STATE"
+sleep 5
+GUEST
+  } | vm_sh 'bash -s'
+  vm_snapshot_save "$VM_FRESH"
+}
+
+if vm_running; then
+  if ((keep)); then
+    vm_wait_ssh 300
+  elif vm_has_snapshot "$target"; then
+    vm_log "restoring snapshot $target"
+    vm_snapshot_load "$target"
+  elif [[ $target == "$VM_FRESH" ]]; then
+    vm_wait_ssh 300
+    prepare_fresh
+  else
+    vm_die "no snapshot named $target (vm/snapshot --list)"
+  fi
+elif ((!keep)) && vm_has_snapshot "$target"; then
+  vm_log "booting into snapshot $target"
+  vm_start "$target"
+  vm_after_restore
+elif ((!keep)) && [[ $target != "$VM_FRESH" ]]; then
+  vm_die "no snapshot named $target (vm/snapshot --list)"
+else
+  vm_log "booting Omarchy $VM_IMAGE_VERSION"
+  vm_start
+  vm_wait_ssh 300
+  vm_has_snapshot "$VM_FRESH" || prepare_fresh
+fi
+
+vm_log "up in $(($(vm_secs) - t0))s; vm/ssh to log in (desktop and sudo password: $VM_PASSWORD)"

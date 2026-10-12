@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# Screenshot the VM's desktop with grim (QEMU screendump if grim fails).
+#
+#   vm/screenshot [name]    -> vm/out/<timestamp>/screenshots/<name>.png
+
+set -euo pipefail
+# shellcheck source=vm/lib/host.sh
+source "$(dirname -- "${BASH_SOURCE[0]}")/lib/host.sh"
+
+vm_require_running
+vm_out_init
+vm_push_lib
+name=${1:-desktop}
+vm_screenshot_to "$VM_OUT/screenshots/$name.png" 0
+ls "$VM_OUT/screenshots/$name".*
