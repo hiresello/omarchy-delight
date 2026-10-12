@@ -1,0 +1,11 @@
+[Unit]
+Description=Omarchy Delight share receive watcher
+PartOf=delight.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/share/omarchy-delight/modules/share/bin/delight-share watch-receive
+Restart=on-failure
+
+[Install]
+WantedBy=delight.target

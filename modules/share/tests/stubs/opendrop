@@ -1,0 +1,11 @@
+#!/bin/bash
+name=$(basename -- "$0")
+printf '%s %s\n' "$name" "$*" >>"${DELIGHT_STUB_LOG:-/dev/null}"
+state=${DELIGHT_STUB_STATE:-/tmp}
+if [[ ${1:-} == "find" ]]; then
+  # Real opendrop logs to stderr and runs until killed; mirror that.
+  [[ -f $state/opendrop-peers ]] && cat -- "$state/opendrop-peers" >&2
+  exit 0
+fi
+[[ ${1:-} == "send" ]] && exit 0
+exit 0

@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "id": "share",
+  "name": "Share",
+  "icon": "󰒖",
+  "description": "AirDrop-style sharing over LocalSend: share sheet, Nautilus Share…, receive notifications, optional AirDrop mode.",
+  "packages": { "repo": ["localsend", "jq", "curl", "inotify-tools"], "aur": [] },
+  "units": ["delight-share-receive.service"],
+  "firewall": [],
+  "capabilities": ["wifi-monitor"],
+  "provides": { "shareTargets": true, "devices": false },
+  "plugin": "plugin",
+  "menu": [
+    { "id": "sheet", "label": "Share…", "icon": "󰒖", "action": "delight share sheet" },
+    { "id": "toggle", "label": "Toggle Share", "icon": "󰒖", "action": "delight share toggle" }
+  ]
+}

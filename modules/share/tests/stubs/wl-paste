@@ -1,0 +1,10 @@
+#!/bin/bash
+name=$(basename -- "$0")
+printf '%s %s\n' "$name" "$*" >>"${DELIGHT_STUB_LOG:-/dev/null}"
+state=${DELIGHT_STUB_STATE:-/tmp}
+if [[ ${1:-} == "--list-types" ]]; then
+  if [[ -f $state/clipboard-type ]]; then cat -- "$state/clipboard-type"; else echo "text/plain"; fi
+  exit 0
+fi
+[[ -f $state/clipboard ]] && cat -- "$state/clipboard"
+exit 0

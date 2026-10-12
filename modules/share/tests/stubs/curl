@@ -1,0 +1,35 @@
+#!/bin/bash
+# curl stub: logs argv; emulates the LocalSend API for protocol tests.
+# Drives: $DELIGHT_STUB_STATE/curl-code (HTTP code, default 200),
+#         $DELIGHT_STUB_STATE/curl-resp (prepare-upload body JSON).
+name=$(basename -- "$0")
+printf '%s %s\n' "$name" "$*" >>"${DELIGHT_STUB_LOG:-/dev/null}"
+state=${DELIGHT_STUB_STATE:-/tmp}
+
+out=/dev/null
+prev=
+for a in "$@"; do
+  if [[ $prev == "-o" ]]; then out=$a; fi
+  prev=$a
+done
+url=${!#}
+
+if [[ $url == *prepare-upload* ]]; then
+  code=$(cat "$state/curl-code" 2>/dev/null || echo 200)
+  body=$(cat "$state/curl-resp" 2>/dev/null || echo '{"sessionId":"s1","files":{"f0":"tok"}}')
+  printf '%s' "$body" >"$out"
+  printf '%s' "$code"
+elif [[ $url == *upload* ]]; then
+  printf '200'
+elif [[ $url == *register* || $url == *info* ]]; then
+  # discovery probe: answer only the hosts listed in state/net-peers
+  ip=$(sed -E 's|^https?://([^:/]+).*|\1|' <<<"$url")
+  if [[ -f $state/net-peers ]] && grep -qF "$ip " "$state/net-peers"; then
+    grep -F "$ip " "$state/net-peers" | cut -d' ' -f2-
+  else
+    exit 7
+  fi
+else
+  printf '200'
+fi
+exit 0
