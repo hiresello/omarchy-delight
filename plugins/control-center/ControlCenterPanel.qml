@@ -140,6 +140,25 @@ Item {
       onTriggered: if (root.opened) root.focusPrimed = true
     }
 
+    // The surface's transparent shadow margin overlaps the bar strip, so a
+    // click there (e.g. on the bar icon again) lands on this layer, not the
+    // dismiss layer: treat it as outside. The card swallows its own clicks.
+    MouseArea {
+      anchors.fill: parent
+      acceptedButtons: Qt.AllButtons
+      onPressed: {
+        root.dismissedAt = Date.now()
+        root.requestClose()
+      }
+    }
+    MouseArea {
+      x: content.x
+      y: content.y
+      width: content.width
+      height: content.height
+      acceptedButtons: Qt.AllButtons
+    }
+
     ControlCenterView {
       id: content
       x: Tokens.shadowMargin
