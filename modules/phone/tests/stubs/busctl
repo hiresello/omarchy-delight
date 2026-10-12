@@ -90,6 +90,9 @@ case "$mode" in
     esac
     ;;
   monitor)
+    if [[ -n ${DELIGHT_PHONE_MONITOR_FILE:-} ]]; then
+      cat "$DELIGHT_PHONE_MONITOR_FILE"
+    fi
     exit 0
     ;;
   *)

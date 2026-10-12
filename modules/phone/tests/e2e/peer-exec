@@ -1,0 +1,12 @@
+#!/bin/bash
+
+set -euo pipefail
+
+for _ in {1..100}; do
+  [[ -s /tmp/phone-e2e-dbus-address ]] && break
+  sleep 0.1
+done
+export DBUS_SESSION_BUS_ADDRESS
+DBUS_SESSION_BUS_ADDRESS=$(</tmp/phone-e2e-dbus-address)
+export XDG_RUNTIME_DIR WAYLAND_DISPLAY QT_QPA_PLATFORM WLR_BACKENDS WLR_LIBINPUT_NO_DEVICES
+exec "$@"

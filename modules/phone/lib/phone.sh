@@ -26,7 +26,13 @@ phone_json_value() {
 phone_json_data() {
   local json="${1:-}"
   [[ -n $json ]] || json='{}'
-  jq -c '.data // []' <<<"$json"
+  jq -c '
+    (.data // []) |
+    if type == "array" and length == 1 and
+      ((.[0] | type) == "array" or (.[0] | type) == "object") then .[0]
+    else .
+    end
+  ' <<<"$json"
 }
 
 phone_daemon_call() {
@@ -467,8 +473,12 @@ phone_signal_value() {
       elif type == "array" then map(unbox)
       else .
       end;
-    ((.data // .args // []) | unbox)[$index] // empty | tostring
+    ((.payload.data // .payload.args // .data // .args // []) | unbox)[$index] // empty | tostring
   ' <<<"$1"
+}
+
+phone_signal_data() {
+  jq -c '.payload.data // .payload.args // .data // .args // []' <<<"$1"
 }
 
 phone_map_notification() {
@@ -562,7 +572,7 @@ phone_handle_signal() {
   path=$(jq -r '.path // empty' <<<"$signal")
   interface=$(jq -r '.interface // empty' <<<"$signal")
   device=$(sed -nE 's#^/modules/kdeconnect/devices/([^/]+)(/.*)?$#\1#p' <<<"$path")
-  data=$(jq -c '.data // []' <<<"$signal")
+  data=$(phone_signal_data "$signal")
   public_id=$(phone_signal_value "$signal" 0)
   case "$member" in
     notificationPosted | notificationUpdated)
@@ -909,7 +919,7 @@ module_watch() {
   while IFS= read -r line; do
     jq -e . <<<"$line" >/dev/null 2>&1 || continue
     phone_handle_signal "$line"
-  done < <(busctl --user --json=short monitor "$PHONE_SERVICE" org.freedesktop.Notifications 2>/dev/null)
+  done < <(stdbuf -oL busctl --user --json=short monitor "$PHONE_SERVICE" org.freedesktop.Notifications 2>/dev/null)
 }
 
 module_handle-signal() {
