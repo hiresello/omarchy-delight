@@ -1,0 +1,388 @@
+#!/bin/bash
+
+# Syncthing-based sync with QR pairing. Verbs beyond the contract:
+#   pair [--json|--terminal]          show this device's ID/QR and pending requests
+#   accept <device-id> [name]         accept a pending device (shares the default folder)
+#   ignore <device-id>                ignore a pending device
+#   add-device <device-id> [name]     add a device by ID
+#   add-folder <path> [--share-with <device>] [--label <label>]
+#   devices --json | open | watch (status/notification loop, run by delight-sync.service)
+
+set -euo pipefail
+
+DELIGHT_ROOT=$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../../.." && pwd)
+# shellcheck source=../../../lib/delight/delight.sh
+source "$DELIGHT_ROOT/lib/delight/delight.sh"
+# shellcheck source=../lib/syncthing.sh
+source "$DELIGHT_ROOT/modules/sync/lib/syncthing.sh"
+
+DELIGHT_MODULE_ID=$(basename -- "${BASH_SOURCE[0]}")
+DELIGHT_MODULE_ID=${DELIGHT_MODULE_ID#delight-}
+
+SYNC_UNIT=syncthing.service
+SYNC_RUNTIME="$DELIGHT_RUNTIME_DIR/sync"
+SYNC_API_ADDRESS=$(delight_config_get sync apiAddress 2>/dev/null || echo "127.0.0.1:8384")
+
+sync_cfg() {
+  delight_config_get sync "$1" 2>/dev/null || echo "${2:-}"
+}
+
+sync_default_folder() {
+  sync_expand_path "$(sync_cfg defaultFolder "$HOME/Sync")"
+}
+
+sync_unit_active() {
+  systemctl --user is-active --quiet "$SYNC_UNIT" 2>/dev/null
+}
+
+sync_loopback() {
+  [[ $1 =~ ^(127\.[0-9.]+|localhost|\[::1\]):[0-9]+$ ]]
+}
+
+sync_need_api() {
+  if ! sync_api_up; then
+    delight_die "Syncthing is not running (try: delight sync enable)" 3
+  fi
+}
+
+module_install() {
+  local dir
+  dir=$(delight_module_dir sync)
+  if [[ -z $(delight_state_flag_get sync syncthingPreEnabled 2>/dev/null) ]]; then
+    delight_state_init sync
+    if systemctl --user is-enabled --quiet "$SYNC_UNIT" 2>/dev/null; then
+      delight_state_flag_set sync syncthingPreEnabled '"yes"'
+    else
+      delight_state_flag_set sync syncthingPreEnabled '"no"'
+    fi
+  fi
+  delight_module_default_install
+  delight_unit_dropin sync "$SYNC_UNIT" "$dir/systemd/syncthing-dropin.conf"
+  delight_systemd_reload
+}
+
+module_uninstall() {
+  delight_module_default_uninstall
+  delight_systemd_reload
+  delight_rm "$SYNC_RUNTIME"
+}
+
+sync_setup_api() {
+  local addr folder
+  addr=$(sync_api GET /rest/config/gui | jq -r '.address') || return 1
+  if ! sync_loopback "$addr"; then
+    sync_api PATCH /rest/config/gui "$(jq -cn --arg a "$SYNC_API_ADDRESS" '{address:$a}')" >/dev/null
+    delight_log "sync: moved the Syncthing GUI/API from $addr to $SYNC_API_ADDRESS"
+  fi
+  if [[ $(delight_state_flag_get sync defaultFolder 2>/dev/null) != "created" ]]; then
+    folder=$(sync_default_folder)
+    sync_add_folder "$folder" "$(sync_cfg defaultFolderId default)" "$(sync_cfg defaultFolderLabel Sync)" >/dev/null
+    delight_state_flag_set sync defaultFolder '"created"'
+  fi
+  sync_api POST /rest/system/resume >/dev/null
+}
+
+module_enable() {
+  delight_config_set sync enabled true
+  delight_unit_start "$SYNC_UNIT" delight-sync.service
+  if delight_dry; then
+    delight_dry_print "configure Syncthing over REST (loopback GUI, default folder, resume)"
+    return 0
+  fi
+  if sync_wait_api 30; then
+    sync_setup_api || delight_warn "sync: could not finish Syncthing setup over REST"
+  else
+    delight_warn "sync: Syncthing API did not come up; run: delight sync doctor"
+  fi
+}
+
+module_disable() {
+  delight_config_set sync enabled false
+  delight_unit_stop delight-sync.service
+  if [[ $(delight_state_flag_get sync syncthingPreEnabled 2>/dev/null) != "yes" ]]; then
+    delight_unit_stop "$SYNC_UNIT"
+  fi
+}
+
+sync_paused() {
+  local myid
+  myid=$(sync_my_id) || return 1
+  sync_api GET /rest/config | jq -e --arg me "$myid" "$SYNC_JQ_DEFS"'{myID:$me, config:.} | paused' >/dev/null
+}
+
+# Pause/resume while Syncthing is up; otherwise the contract's enable/disable.
+sync_toggle() {
+  if ! delight_is_installed sync || ! delight_module_enabled; then
+    delight_module_main enable
+  elif delight_dry; then
+    delight_dry_print "pause or resume all Syncthing devices"
+  elif ! sync_api_up; then
+    delight_module_main disable
+  elif sync_paused; then
+    sync_api POST /rest/system/resume >/dev/null
+    delight_module_publish
+  else
+    sync_api POST /rest/system/pause >/dev/null
+    delight_module_publish
+  fi
+}
+
+sync_status_json() {
+  local state="$1" subtitle="$2" reason="${3:-}" actions="${4:-[]}" devices="${5:-[]}"
+  delight_status_json --id sync --state "$state" --title "Sync" --subtitle "$subtitle" \
+    --icon "$(delight_module_field sync '.icon')" --reason "$reason" --actions "$actions" --devices "$devices"
+}
+
+module_status() {
+  local snap fields state actions
+  if ! delight_is_installed sync || ! delight_module_enabled; then
+    delight_module_default_status
+    return 0
+  fi
+  if ! sync_unit_active; then
+    if systemctl --user is-failed --quiet "$SYNC_UNIT" 2>/dev/null; then
+      sync_status_json error "Stopped" "$SYNC_UNIT failed; see: journalctl --user -u $SYNC_UNIT"
+    else
+      sync_status_json busy "Starting…"
+    fi
+    return 0
+  fi
+  if ! snap=$(sync_snapshot 2>/dev/null); then
+    sync_status_json on "Starting…"
+    return 0
+  fi
+  fields=$(sync_status_fields <<<"$snap")
+  state=$(jq -r '.state' <<<"$fields")
+  actions=$(jq -c '[
+      (if .conflicts > 0 and .conflictFolder != "" then {label:"Open folder", icon:"󰉋", command:["xdg-open", .conflictFolder]} else empty end),
+      {label:"Pair a device", icon:"󰐲", command:["delight","sync","pair"]},
+      {label:"Open Syncthing", icon:"󰖟", command:["delight","sync","open"]}]' <<<"$fields")
+  sync_status_json "$state" "$(jq -r '.subtitle' <<<"$fields")" "$(jq -r '.reason // empty' <<<"$fields")" \
+    "$actions" "$(sync_devices_from <<<"$snap")"
+}
+
+module_doctor() {
+  local rc=0 addr
+  if ! delight_module_default_doctor >/dev/null; then
+    echo "missing package: syncthing (run: delight sync install)"
+    return 1
+  fi
+  if ! delight_has_cmd qrencode; then
+    echo "missing qrencode: pairing QR codes need it (omarchy-pkg-add qrencode)"
+    rc=1
+  fi
+  if ! delight_module_enabled; then
+    echo "sync is disabled (run: delight sync enable)"
+    return 1
+  fi
+  if ! sync_unit_active; then
+    echo "$SYNC_UNIT is not running (journalctl --user -u $SYNC_UNIT)"
+    return 1
+  fi
+  if ! sync_api_up; then
+    echo "Syncthing API not reachable at $(sync_api_base)"
+    return 1
+  fi
+  addr=$(sync_api GET /rest/config/gui | jq -r '.address')
+  if ! sync_loopback "$addr"; then
+    echo "Syncthing GUI/API listens on $addr, not loopback (run: delight sync enable)"
+    rc=1
+  fi
+  if delight_ufw_available && ! sudo -n ufw status 2>/dev/null | grep -q "omarchy-delight:sync"; then
+    echo "ufw has no omarchy-delight:sync rules; other devices on your LAN may not connect (run: delight sync install)"
+    rc=1
+  fi
+  ((rc == 0)) && echo "ok"
+  return "$rc"
+}
+
+module_devices() {
+  [[ ${1:-} == "--json" ]] || delight_die "usage: delight sync devices --json" 64
+  local snap
+  if snap=$(sync_snapshot 2>/dev/null); then
+    sync_devices_from <<<"$snap"
+  else
+    echo '[]'
+  fi
+}
+
+sync_pair_json() {
+  local myid qr="" pending devices
+  myid=$(sync_my_id)
+  if delight_has_cmd qrencode; then
+    mkdir -p "$SYNC_RUNTIME"
+    qr="$SYNC_RUNTIME/device-id.png"
+    [[ -s $qr && $(cat "$SYNC_RUNTIME/device-id" 2>/dev/null) == "$myid" ]] || {
+      delight_qr "$myid" "$qr" >/dev/null
+      echo "$myid" >"$SYNC_RUNTIME/device-id"
+    }
+  fi
+  pending=$(sync_api GET /rest/cluster/pending/devices | jq -c 'to_entries | map({id:.key, name:(.value.name // ""), address:(.value.address // ""), time:(.value.time // "")})')
+  devices=$(module_devices --json)
+  jq -cn --arg id "$myid" --arg qr "$qr" --argjson pending "$pending" --argjson devices "$devices" \
+    '{deviceId:$id, qr:(if $qr == "" then null else $qr end), pending:$pending, devices:$devices}'
+}
+
+module_pair() {
+  local mode="${1:-}" json
+  sync_need_api
+  json=$(sync_pair_json)
+  if [[ $mode == "--json" ]]; then
+    echo "$json"
+  elif [[ $mode != "--terminal" ]] && [[ -n ${WAYLAND_DISPLAY:-} ]] && delight_has_cmd omarchy-shell; then
+    "$DELIGHT_ROOT/bin/delight" ui summon delight.sync "$json"
+  else
+    echo "This device's Syncthing ID:"
+    jq -r '.deviceId' <<<"$json"
+    if delight_has_cmd qrencode; then
+      delight_qr "$(jq -r '.deviceId' <<<"$json")"
+    fi
+    jq -r '.pending[] | "Pending: \(.name) \(.id)\n  accept: delight sync accept \(.id)\n  ignore: delight sync ignore \(.id)"' <<<"$json"
+  fi
+}
+
+sync_after_accept() {
+  local id="$1" folder
+  if [[ $(sync_cfg shareDefaultFolderOnAccept true) == "true" ]]; then
+    folder=$(sync_folder_id_for "$(sync_default_folder)")
+    [[ -z $folder ]] || sync_share_folder "$folder" "$id"
+  fi
+  delight_module_publish
+}
+
+module_accept() {
+  [[ -n ${1:-} ]] || delight_die "usage: delight sync accept <device-id> [name]" 64
+  local id
+  id=$(sync_normalize_id "$1") || delight_die "'$1' is not a Syncthing device ID" 64
+  sync_need_api
+  sync_add_device "$id" "${2:-}"
+  sync_after_accept "$id"
+  echo "accepted $id"
+}
+
+module_add-device() {
+  module_accept "$@"
+}
+
+module_ignore() {
+  [[ -n ${1:-} ]] || delight_die "usage: delight sync ignore <device-id>" 64
+  sync_need_api
+  sync_ignore_device "$1"
+  delight_module_publish
+}
+
+module_add-folder() {
+  local path="" share="" label="" id
+  while (($# > 0)); do
+    case "$1" in
+      --share-with) share="${2:?--share-with needs a device}" && shift ;;
+      --label) label="${2:?--label needs a value}" && shift ;;
+      -*) delight_die "unknown option $1" 64 ;;
+      *) path="$1" ;;
+    esac
+    shift
+  done
+  [[ -n $path ]] || delight_die "usage: delight sync add-folder <path> [--share-with <device>] [--label <label>]" 64
+  sync_need_api
+  path=$(sync_expand_path "$path")
+  if [[ -n $share ]]; then
+    share=$(sync_resolve_device "$share") || exit 1
+  fi
+  if [[ $path == "$(sync_default_folder)" && -z $label ]]; then
+    id=$(sync_add_folder "$path" "$(sync_cfg defaultFolderId default)" "$(sync_cfg defaultFolderLabel Sync)" "$share")
+  else
+    id=$(sync_add_folder "$path" "" "$label" "$share")
+  fi
+  delight_module_publish
+  echo "$id"
+}
+
+module_open() {
+  delight_run xdg-open "$(sync_api_base)/"
+}
+
+sync_notify() {
+  local title="$1" body="$2"
+  shift 2
+  if delight_has_cmd omarchy-notification-send; then
+    omarchy-notification-send --app-name omarchy-delight-sync -g "󰓦" "$title" "$body" --exec "$@" || true
+  else
+    delight_notify sync "$title" "$body" || true
+  fi
+}
+
+# Notifications for one batch of events (JSON array on stdin).
+sync_handle_events() {
+  local events line kind a b c seen
+  events=$(cat)
+  while IFS=$'\t' read -r kind a b c; do
+    case "$kind" in
+      device)
+        [[ -z ${SYNC_SEEN[$a]:-} ]] || continue
+        SYNC_SEEN[$a]=1
+        if [[ $(sync_cfg notifyDevices true) == "true" ]]; then
+          sync_notify "New device wants to sync" "${b:-${a:0:7}} · click to review" delight sync pair
+        fi
+        ;;
+      conflict)
+        seen="conflict:$a:$b"
+        [[ -z ${SYNC_SEEN[$seen]:-} ]] || continue
+        SYNC_SEEN[$seen]=1
+        if [[ $(sync_cfg notifyConflicts true) == "true" ]]; then
+          line=$(sync_api GET "/rest/config/folders/$a" | jq -r '.path') || line=""
+          sync_notify "Sync conflict" "$b in ${c:-$a} · click to open the folder" xdg-open "${line:-$HOME}"
+        fi
+        ;;
+    esac
+  done < <(jq -r --arg re "$SYNC_CONFLICT_RE" '.[] |
+    if .type == "PendingDevicesChanged" then
+      (.data.added // [])[] | ["device", .deviceID, (.name // ""), ""] | @tsv
+    elif .type == "LocalIndexUpdated" then
+      .data as $d | ($d.filenames // [])[] | select(test($re)) | ["conflict", $d.folder, ., ($d.label // "")] | @tsv
+    else empty end' <<<"$events")
+}
+
+sync_publish_if_changed() {
+  local json
+  json=$(module_status) || return 0
+  if [[ $(jq -c 'del(.updated)' <<<"$json") != "${SYNC_LAST:-}" ]]; then
+    SYNC_LAST=$(jq -c 'del(.updated)' <<<"$json")
+    delight_status_write sync "$json"
+  fi
+}
+
+SYNC_WATCH_EVENTS="PendingDevicesChanged,LocalIndexUpdated,StateChanged,FolderCompletion,FolderSummary,DeviceConnected,DeviceDisconnected,DevicePaused,DeviceResumed,FolderPaused,FolderResumed,ConfigSaved,FolderErrors"
+
+module_watch() {
+  declare -gA SYNC_SEEN=()
+  local since=-1 events
+  while true; do
+    if ! sync_api_up; then
+      since=-1
+      sync_publish_if_changed
+      sleep 5
+      continue
+    fi
+    if ((since < 0)); then
+      since=$(sync_api GET "/rest/events?events=$SYNC_WATCH_EVENTS&since=0&limit=1&timeout=0" | jq -r '.[-1].id // 0') || since=0
+      sync_publish_if_changed
+    fi
+    if ! events=$(SYNC_API_TIMEOUT=75 sync_api GET "/rest/events?events=$SYNC_WATCH_EVENTS&since=$since&timeout=60"); then
+      since=-1
+      continue
+    fi
+    if [[ $(jq 'length' <<<"$events") -gt 0 ]]; then
+      since=$(jq -r '.[-1].id' <<<"$events")
+      sync_handle_events <<<"$events"
+    fi
+    sync_publish_if_changed
+    [[ -z ${SYNC_WATCH_ONCE:-} ]] || return 0
+  done
+}
+
+if [[ ${1:-} == "toggle" ]]; then
+  sync_toggle
+  exit 0
+fi
+
+delight_module_main "$@"

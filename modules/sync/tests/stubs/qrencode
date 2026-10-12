@@ -1,0 +1,11 @@
+#!/bin/bash
+# Writes "QR <text>" to -o <file>, or prints it.
+out=""
+while (($# > 0)); do
+  case "$1" in
+    -o) out="$2" && shift ;;
+    --) text="$2" && break ;;
+  esac
+  shift
+done
+if [[ -n $out ]]; then echo "QR ${text:-}" >"$out"; else echo "QR ${text:-}"; fi

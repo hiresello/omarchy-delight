@@ -1,0 +1,39 @@
+#!/bin/bash
+# Fake Syncthing REST server for the sync tests. Routes are files in
+# $FAKE_ST/routes named <METHOD><path with / as _>[@<folder>].json; every
+# request is appended to $FAKE_ST/requests.log as "METHOD path?query body".
+set -uo pipefail
+method=GET body="" fmt="" key="" url=""
+while (($# > 0)); do
+  case "$1" in
+    -X) method="$2" && shift ;;
+    -H) [[ $2 == X-API-Key:* ]] && key="${2#X-API-Key: }" && true; shift ;;
+    --data-binary | -d) body="$2" && shift ;;
+    -w) fmt="$2" && shift ;;
+    --max-time | -m) shift ;;
+    -*) ;;
+    *) url="$1" ;;
+  esac
+  shift
+done
+if [[ -e $FAKE_ST/down ]]; then
+  echo "curl: (7) Failed to connect to 127.0.0.1 port 8384" >&2
+  exit 7
+fi
+target=${url#http://*/}
+target=/$target
+path=${target%%\?*}
+printf '%s %s %s\n' "$method" "$target" "$body" >>"$FAKE_ST/requests.log"
+route=$method${path//\//_}
+[[ $target =~ [?\&]folder=([^\&]+) ]] && route+="@${BASH_REMATCH[1]}"
+code=200 out=""
+if [[ $path != /rest/noauth/* && $key != "${FAKE_ST_KEY:-}" ]]; then
+  code=403 out="Forbidden"
+elif [[ -f $FAKE_ST/routes/$route.json ]]; then
+  out=$(cat "$FAKE_ST/routes/$route.json")
+elif [[ $method == GET ]]; then
+  code=404 out="404 page not found"
+fi
+printf '%s' "$out"
+fmt=${fmt//\\n/$'\n'}
+printf '%s' "${fmt//%\{http_code\}/$code}"

@@ -1,0 +1,37 @@
+{
+  "alloc": 2303272,
+  "connectionServiceStatus": {
+    "tcp://127.0.0.1:22000": {
+      "error": null,
+      "lanAddresses": [
+        "tcp://127.0.0.1:22000"
+      ],
+      "wanAddresses": [
+        "tcp://127.0.0.1:22000"
+      ]
+    }
+  },
+  "cpuPercent": 0,
+  "discoveryEnabled": true,
+  "discoveryErrors": {},
+  "discoveryMethods": 2,
+  "discoveryStatus": {
+    "IPv4 local": {
+      "error": null
+    },
+    "IPv6 local": {
+      "error": null
+    }
+  },
+  "goroutines": 66,
+  "guiAddressOverridden": false,
+  "guiAddressUsed": "127.0.0.1:8384",
+  "lastDialStatus": {},
+  "myID": "UOR3FHY-HJFYMEI-5U5AXOD-Q4RHYXY-ZL5KSNZ-L76C6M6-BXGCIIS-IZ7ZGAP",
+  "pathSeparator": "/",
+  "startTime": "2026-10-12T09:13:27Z",
+  "sys": 14588168,
+  "tilde": "/home/u",
+  "uptime": 34,
+  "urVersionMax": 3
+}

@@ -1,0 +1,10 @@
+{
+  "enabled": false,
+  "defaultFolder": "~/Sync",
+  "defaultFolderId": "default",
+  "defaultFolderLabel": "Sync",
+  "shareDefaultFolderOnAccept": true,
+  "apiAddress": "127.0.0.1:8384",
+  "notifyDevices": true,
+  "notifyConflicts": true
+}
