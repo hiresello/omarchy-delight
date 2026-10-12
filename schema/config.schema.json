@@ -4,16 +4,38 @@
   "title": "Delight config (~/.config/omarchy-delight/config.json)",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "modules"],
+  "required": [
+    "schema",
+    "modules"
+  ],
   "properties": {
-    "schema": { "const": 1 },
+    "schema": {
+      "const": 1
+    },
     "modules": {
       "type": "object",
       "description": "One key per module id. Each module owns only its own key.",
-      "propertyNames": { "pattern": "^[a-z][a-z0-9-]*$" },
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
       "additionalProperties": {
         "type": "object",
-        "properties": { "enabled": { "type": "boolean" } }
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "ui": {
+      "type": "object",
+      "description": "Look of Delight surfaces.",
+      "additionalProperties": false,
+      "properties": {
+        "font": {
+          "type": "string",
+          "description": "UI font family for Delight surfaces, or \"theme\" for the Omarchy theme font. Default: Inter, else Noto Sans."
+        }
       }
     }
   }

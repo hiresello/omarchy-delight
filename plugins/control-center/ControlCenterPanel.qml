@@ -13,6 +13,9 @@ Item {
   property var shell: null
   property var manifest: null
   property bool opened: false
+  // When the focus grab last closed us; a bar click that cleared the grab
+  // must not reopen the panel it just dismissed.
+  property real dismissedAt: 0
   readonly property string pluginId: "delight.control-center"
   property alias store: statusStore
   property alias actions: commands
@@ -21,6 +24,11 @@ Item {
   function open(payloadJson) {
     let payload = {}
     try { payload = JSON.parse(payloadJson || "{}") || {} } catch (e) { payload = {} }
+    if (Date.now() - dismissedAt < 350) {
+      requestClose()
+      return
+    }
+    Tokens.refresh()
     content.showInstall = payload.view === "install"
     opened = true
     statusStore.refresh()
@@ -39,7 +47,10 @@ Item {
     else close()
   }
 
-  StatusStore { id: statusStore }
+  StatusStore {
+    id: statusStore
+    live: root.opened
+  }
 
   Catalog {
     id: catalog
@@ -65,24 +76,30 @@ Item {
     visible: root.opened
     color: "transparent"
     anchors { top: true; right: true }
-    margins { top: Style.space(6); right: Style.space(8) }
+    // The card lines up with window gaps; the surface extends past it by
+    // shadowMargin so the baked shadow has room.
+    margins { top: Style.gapsOut * 2 - Tokens.shadowMargin; right: Style.gapsOut * 2 - Tokens.shadowMargin }
     exclusionMode: ExclusionMode.Normal
-    implicitWidth: content.implicitWidth + Tokens.paddingLarge * 2
-    implicitHeight: content.implicitHeight + Tokens.paddingLarge * 2
+    implicitWidth: content.implicitWidth + Tokens.shadowMargin * 2
+    implicitHeight: content.implicitHeight + Tokens.shadowMargin * 2
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.namespace: "delight-control-center"
     WlrLayershell.keyboardFocus: root.opened ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
     HyprlandFocusGrab {
-      active: root.opened
+      // Only a mapped surface can hold the grab; arming it earlier is dropped.
+      active: root.opened && window.backingWindowVisible
       windows: [window]
-      onCleared: root.requestClose()
+      onCleared: {
+        root.dismissedAt = Date.now()
+        root.requestClose()
+      }
     }
 
     ControlCenterView {
       id: content
-      x: Tokens.paddingLarge
-      y: Tokens.paddingLarge
+      x: Tokens.shadowMargin
+      y: Tokens.shadowMargin
       width: Tokens.sheetWidth
       height: implicitHeight
       focus: true
@@ -91,7 +108,8 @@ Item {
       devices: catalog.devices
       available: catalog.available
       opacity: root.opened ? 1 : 0
-      transform: Translate { y: root.opened ? 0 : -Tokens.spacing }
+      scale: root.opened ? 1 : 0.96
+      transformOrigin: Item.TopRight
       onToggleRequested: status => commands.toggle(status)
       onDetailRequested: status => {
         commands.detail(status)
@@ -108,6 +126,7 @@ Item {
       onCloseRequested: root.requestClose()
 
       Behavior on opacity { NumberAnimation { duration: Tokens.animationFast; easing.type: Tokens.easing } }
+      Behavior on scale { NumberAnimation { duration: Tokens.animationNormal; easing.type: Tokens.easingSpring } }
     }
   }
 }

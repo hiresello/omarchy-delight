@@ -133,9 +133,10 @@ ShellRoot {
           let m = fixtures[id]
           let tile = shellRoot.findTile(m.title)
           stateSeen[m.state] = true
+          let large = store.isTile(m)
           shellRoot.tap(!!tile && tile.status === m.state && tile.visible && tile.width > 0 && tile.height > 0,
-            "renders " + m.state + " " + (m.toggle ? "tile" : "row") + " for " + id)
-          if (tile) shellRoot.tap(tile.compact === !m.toggle, id + " is a " + (m.toggle ? "large tile" : "compact row"))
+            "renders " + m.state + " " + (large ? "tile" : "row") + " for " + id)
+          if (tile) shellRoot.tap(tile.compact === !large, id + " is a " + (large ? "large tile" : "compact row"))
           if (tile && (m.state === "unsupported" || m.state === "error" || m.state === "needs-setup"))
             shellRoot.tap(tile.caption === m.reason, id + " shows its reason", "caption=" + tile.caption)
         }

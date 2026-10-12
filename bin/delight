@@ -20,7 +20,8 @@ Usage: delight <command>
   config set <id>.<key> <value>     write a config value (JSON or string)
   share-targets --json              share targets from all modules
   devices --json                    devices from all modules
-  ui summon <plugin-id> [json]      open a Delight panel
+  ui summon|toggle|hide <plugin-id> [json]
+                                    open, open-or-close, or close a Delight panel
   notify <id> <title> <body>        send a notification
   refresh                           regenerate Hyprland, menu and hook files
   dev new-module <id>               scaffold modules/<id> from templates/module
@@ -98,10 +99,15 @@ cmd_config() {
 }
 
 cmd_ui() {
-  [[ ${1:-} == "summon" && -n ${2:-} ]] || delight_die "usage: delight ui summon <plugin-id> [json]" 64
+  local verb=${1:-}
+  [[ $verb =~ ^(summon|toggle|hide)$ && -n ${2:-} ]] || delight_die "usage: delight ui summon|toggle|hide <plugin-id> [json]" 64
   [[ $2 == delight.* ]] || delight_die "plugin id must start with delight." 64
   delight_has_cmd omarchy-shell || delight_die "omarchy-shell is not available"
-  delight_run omarchy-shell shell summon "$2" "${3:-{\}}"
+  if [[ $verb == "hide" ]]; then
+    delight_run omarchy-shell shell hide "$2"
+  else
+    delight_run omarchy-shell shell "$verb" "$2" "${3:-{\}}"
+  fi
 }
 
 cmd_hook() {

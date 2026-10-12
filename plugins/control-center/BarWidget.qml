@@ -23,7 +23,7 @@ BarWidget {
 
   StatusStore {
     id: statusStore
-    fallbackInterval: 30000
+    live: false
   }
 
   BarIconButton {

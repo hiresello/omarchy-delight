@@ -29,7 +29,10 @@ PanelWindow {
   WlrLayershell.namespace: "delight-sheet"
   WlrLayershell.keyboardFocus: shown ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
-  onShownChanged: if (shown) Qt.callLater(function() { modal.forceActiveFocus() })
+  onShownChanged: if (shown) {
+    Tokens.refresh()
+    Qt.callLater(function() { modal.forceActiveFocus() })
+  }
 
   Rectangle {
     id: scrim

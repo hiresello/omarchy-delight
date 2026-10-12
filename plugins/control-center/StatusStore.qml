@@ -15,6 +15,9 @@ Item {
   property string statusDir: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/omarchy-delight/status"
   property bool fallbackEnabled: true
   property int fallbackInterval: 30000
+  // Poll repeatedly only while someone is looking (the panel is open); the
+  // file watcher pushes every change, so a closed panel costs nothing.
+  property bool live: true
   property var delightCommand: ["delight"]
 
   readonly property var stateNames: ["on", "off", "busy", "needs-setup", "unsupported", "error"]
@@ -39,12 +42,17 @@ Item {
     }
     return busy ? "busy" : ""
   }
-  readonly property var toggles: modules.filter(function(m) { return m.toggle })
-  readonly property var rows: modules.filter(function(m) { return !m.toggle })
+  // Toggles that can't act yet (unsupported, needs setup) join the rows, so
+  // the big tiles are only things one click can switch.
+  function isTile(m) { return m.toggle && m.state !== "unsupported" && m.state !== "needs-setup" }
+  readonly property var toggles: modules.filter(function(m) { return root.isTile(m) })
+  readonly property var rows: modules.filter(function(m) { return !root.isTile(m) })
 
   signal changed()
 
   signal reloadRequested()
+
+  Component.onCompleted: pollFallback()
 
   function refresh() {
     reloadRequested()
@@ -174,7 +182,7 @@ Item {
   Timer {
     interval: root.fallbackInterval
     repeat: true
-    running: root.fallbackEnabled
+    running: root.fallbackEnabled && root.live
     triggeredOnStart: true
     onTriggered: root.pollFallback()
   }

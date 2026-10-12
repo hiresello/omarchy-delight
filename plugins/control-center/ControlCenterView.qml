@@ -87,10 +87,9 @@ FocusScope {
     closeOnEscape: false
 
     // ---- large tiles
-    Grid {
+    Flow {
       id: tileGrid
       width: parent.width
-      columns: 2
       spacing: Tokens.spacing
       visible: tileRepeater.count > 0
 
@@ -99,7 +98,10 @@ FocusScope {
         model: root.toggles
         delegate: Tile {
           required property var modelData
-          width: (tileGrid.width - tileGrid.spacing) / 2
+          required property int index
+          // A lone last tile spans the row instead of leaving a hole.
+          width: index === tileRepeater.count - 1 && tileRepeater.count % 2 === 1
+            ? tileGrid.width : (tileGrid.width - tileGrid.spacing) / 2
           icon: modelData.icon
           title: modelData.title
           subtitle: modelData.subtitle
@@ -144,6 +146,7 @@ FocusScope {
             reason: modelData.reason
             toggleable: false
             hasDetail: true
+            setupLabel: modelData.state === "needs-setup" ? "Set up" : modelData.state === "error" ? "Fix" : ""
             detailLabel: modelData.actions.length > 0 ? modelData.actions[0].label : "Open " + modelData.title
             onDetailRequested: root.detailRequested(modelData)
             onExplainRequested: toast.show(modelData.reason, modelData.icon, "info")
