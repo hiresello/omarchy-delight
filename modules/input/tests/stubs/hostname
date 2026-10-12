@@ -1,0 +1,5 @@
+#!/bin/bash
+
+printf '%s %s\n' "$(basename -- "$0")" "$*" >>"${DELIGHT_STUB_LOG:-/dev/null}"
+printf '%s\n' "${INPUT_TEST_HOSTNAME:-omarchy}"
+exit 0

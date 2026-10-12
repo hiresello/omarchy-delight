@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# Prints a busctl-introspect-like table with every portal interface named in
+# $INPUT_TEST_PORTALS (space-separated short names).
+printf '%s %s\n' "$(basename -- "$0")" "$*" >>"${DELIGHT_STUB_LOG:-/dev/null}"
+for portal in ${INPUT_TEST_PORTALS:-}; do
+  printf 'org.freedesktop.portal.%s interface - - -\n' "$portal"
+done
+exit 0

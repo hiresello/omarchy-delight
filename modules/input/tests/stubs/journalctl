@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# Prints the contents of the file $INPUT_TEST_JOURNAL when set.
+printf '%s %s\n' "$(basename -- "$0")" "$*" >>"${DELIGHT_STUB_LOG:-/dev/null}"
+if [[ -n ${INPUT_TEST_JOURNAL:-} ]]; then
+  cat -- "$INPUT_TEST_JOURNAL"
+fi
+exit 0

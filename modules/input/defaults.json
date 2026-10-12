@@ -1,0 +1,8 @@
+{
+  "enabled": false,
+  "role": "share",
+  "backend": "auto",
+  "name": "",
+  "clipboard": true,
+  "peers": []
+}

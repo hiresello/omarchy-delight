@@ -1,0 +1,366 @@
+#!/bin/bash
+
+# Universal Control: share this computer's keyboard and mouse with neighbouring
+# machines. Backend is Deskflow when the needed portal exists, Lan Mouse
+# otherwise. See docs/contracts.md for the verb contract.
+
+set -euo pipefail
+
+DELIGHT_ROOT=$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../../.." && pwd)
+# shellcheck source=../../../lib/delight/delight.sh
+source "$DELIGHT_ROOT/lib/delight/delight.sh"
+# shellcheck source=../lib/backend.sh
+source "$DELIGHT_ROOT/modules/input/lib/backend.sh"
+# shellcheck source=../lib/config.sh
+source "$DELIGHT_ROOT/modules/input/lib/config.sh"
+
+DELIGHT_MODULE_ID=$(basename -- "${BASH_SOURCE[0]}")
+DELIGHT_MODULE_ID=${DELIGHT_MODULE_ID#delight-}
+
+input_dir() {
+  printf '%s/input\n' "$DELIGHT_CONFIG_DIR"
+}
+
+input_deskflow_dir() {
+  printf '%s/deskflow\n' "$(input_dir)"
+}
+
+input_lan_mouse_dir() {
+  printf '%s/lan-mouse\n' "$(input_dir)"
+}
+
+# Settings JSON consumed by the generators in lib/config.sh.
+input_settings() {
+  local role backend name clipboard peers
+  role=$(delight_config_get input role 2>/dev/null || echo share)
+  backend=$(delight_config_get input backend 2>/dev/null || echo auto)
+  name=$(delight_config_get input name 2>/dev/null || true)
+  if [[ -z $name ]]; then
+    name=$(hostname -s 2>/dev/null || uname -n)
+  fi
+  clipboard=$(delight_config_get input clipboard 2>/dev/null || echo true)
+  peers=$(delight_config_get input peers 2>/dev/null || echo '[]')
+  jq -cn --arg role "$role" --arg override "$backend" --arg name "$name" \
+    --arg dir "$(input_deskflow_dir)" --argjson clipboard "$clipboard" --argjson peers "$peers" \
+    '{role:$role, override:$override, name:$name, dir:$dir, clipboard:$clipboard, peers:$peers}'
+}
+
+input_selection() {
+  input_settings | jq -r '[.role, .override] | @tsv' | {
+    IFS=$'\t' read -r role override
+    input_select_backend "$role" "$override"
+  }
+}
+
+input_backend() {
+  local file
+  file="$(input_dir)/backend"
+  if [[ -f $file ]]; then
+    cat -- "$file"
+  else
+    input_selection | jq -r .backend
+  fi
+}
+
+input_write() {
+  local rel="$1" dest
+  dest="$(input_dir)/$rel"
+  delight_write "$dest"
+  delight_state_add input files "$(jq -cn --arg f "$dest" '$f')"
+}
+
+# (Re)generate every config file for the selected backend.
+input_configure() {
+  local settings selection backend
+  settings=$(input_settings)
+  selection=$(jq -r '[.role, .override] | @tsv' <<<"$settings" | {
+    IFS=$'\t' read -r role override
+    input_select_backend "$role" "$override"
+  })
+  backend=$(jq -r .backend <<<"$selection")
+  settings=$(jq -c --arg b "$backend" '. + {backend:$b}' <<<"$settings")
+
+  printf '%s\n' "$backend" | input_write backend
+  printf '%s\n' "$selection" | input_write selection.json
+
+  if [[ $backend == "deskflow" ]]; then
+    input_deskflow_ini "$settings" | input_write deskflow/Deskflow.conf
+    if [[ $(jq -r .role <<<"$settings") == "share" ]]; then
+      input_deskflow_server_conf "$settings" | input_write deskflow/deskflow-server.conf
+      input_deskflow_trusted "$settings" | input_write deskflow/tls/trusted-clients
+    else
+      input_deskflow_trusted "$settings" | input_write deskflow/tls/trusted-servers
+    fi
+    input_ensure_deskflow_cert "$settings"
+  else
+    input_lan_mouse_toml "$settings" | input_write lan-mouse/config.toml
+  fi
+}
+
+input_ensure_deskflow_cert() {
+  local settings="$1" cert name
+  cert="$(input_deskflow_dir)/tls/deskflow.pem"
+  [[ -f $cert ]] && return 0
+  delight_has_cmd openssl || return 0
+  delight_dry && return 0
+  name=$(jq -r .name <<<"$settings")
+  mkdir -p -- "$(dirname -- "$cert")"
+  openssl req -x509 -newkey rsa:2048 -nodes -keyout "$cert" -out "$cert" \
+    -subj "/CN=$name" -days 3650 >/dev/null 2>&1 \
+    || delight_warn "could not generate a TLS certificate at $cert"
+}
+
+input_local_fingerprint() {
+  local backend cert fp
+  backend=$(input_backend)
+  case "$backend" in
+    deskflow) cert="$(input_deskflow_dir)/tls/deskflow.pem" ;;
+    lan-mouse) cert="$(input_lan_mouse_dir)/lan-mouse.pem" ;;
+    *) cert="" ;;
+  esac
+  fp=null
+  if [[ -n $cert && -f $cert ]] && delight_has_cmd openssl; then
+    fp=$(openssl x509 -noout -fingerprint -sha256 -in "$cert" 2>/dev/null \
+      | sed 's/^[^=]*=//' | tr 'A-F' 'a-f' || true)
+    [[ $fp =~ ^[0-9a-f:]+$ ]] || fp=null
+    [[ $fp != null ]] && fp=$(jq -cn --arg f "$fp" '$f')
+  fi
+  jq -cn --arg b "$backend" --arg p "$cert" --argjson f "$fp" \
+    '{backend:$b, local:$f, path:$p}'
+}
+
+# Connection probe for one peer; prints true/false.
+input_peer_connected() {
+  local backend="$1" name="$2" host="$3" line
+  case "$backend" in
+    lan-mouse)
+      lan-mouse cli list 2>/dev/null \
+        | grep -F "$host" | grep -q 'active: true'
+      ;;
+    deskflow)
+      line=$(journalctl --user -u delight-input.service -o cat -n 300 2>/dev/null \
+        | grep -F "client \"$name\" has " | tail -n1 || true)
+      [[ $line == *"has connected"* && $line != *"has disconnected"* ]]
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+module_install() {
+  delight_module_default_install
+}
+
+module_enable() {
+  local role="" backend="" was_enabled=false
+  if delight_module_enabled; then
+    was_enabled=true
+  fi
+  while (($# > 0)); do
+    case "$1" in
+      --role)
+        role="$2"
+        shift 2
+        ;;
+      --backend)
+        backend="$2"
+        shift 2
+        ;;
+      *) delight_die "usage: delight input enable [--role share|receive] [--backend auto|deskflow|lan-mouse]" 64 ;;
+    esac
+  done
+  if [[ -n $role ]]; then
+    [[ $role == "share" || $role == "receive" ]] || delight_die "invalid role '$role'" 64
+    delight_config_set input role "$role"
+  fi
+  if [[ -n $backend ]]; then
+    [[ $backend =~ ^(auto|deskflow|lan-mouse)$ ]] || delight_die "invalid backend '$backend'" 64
+    delight_config_set input backend "$backend"
+  fi
+  input_configure
+  delight_module_default_enable
+  if [[ $was_enabled == "true" ]]; then
+    delight_run systemctl --user restart delight-input.service \
+      || delight_warn "could not restart delight-input.service"
+  fi
+}
+
+module_configure() {
+  input_configure
+  if delight_module_enabled; then
+    delight_run systemctl --user restart delight-input.service \
+      || delight_warn "could not restart delight-input.service"
+  fi
+}
+
+module_set-peers() {
+  local json="${1:-}"
+  [[ -n $json ]] || delight_die "usage: delight input set-peers '<json array>'" 64
+  jq -e '
+    type == "array"
+    and all(.[];
+      (.name | test("^[A-Za-z0-9._-]+$"))
+      and (.edge as $e | ["left","right","top","bottom"] | index($e) != null)
+      and (.host | type == "string" and length > 0)
+      and ((.fingerprint // "") | test("^[0-9A-Fa-f:]*$")))
+    and ([.[].edge] | unique | length) == length
+  ' <<<"$json" >/dev/null 2>&1 \
+    || delight_die "invalid peers JSON (unique edges; names ^[A-Za-z0-9._-]+$; edge left|right|top|bottom)" 64
+  delight_config_set input peers "$json"
+  input_configure
+  if delight_module_enabled; then
+    delight_run systemctl --user restart delight-input.service \
+      || delight_warn "could not restart delight-input.service"
+  fi
+}
+
+module_trust() {
+  local name="${1:-}" fp="${2:-}" peers
+  [[ -n $name && -n $fp ]] || delight_die "usage: delight input trust <peer-name> <fingerprint>" 64
+  input_fp_colons "$fp" >/dev/null || delight_die "invalid fingerprint '$fp'" 64
+  peers=$(delight_config_get input peers 2>/dev/null || echo '[]')
+  jq -e --arg n "$name" 'any(.[]; .name == $n)' <<<"$peers" >/dev/null \
+    || delight_die "no peer named '$name'" 64
+  peers=$(jq -c --arg n "$name" --arg f "$fp" \
+    'map(if .name == $n then . + {fingerprint:$f} else . end)' <<<"$peers")
+  delight_config_set input peers "$peers"
+  input_configure
+  if delight_module_enabled; then
+    delight_run systemctl --user restart delight-input.service \
+      || delight_warn "could not restart delight-input.service"
+  fi
+}
+
+module_fingerprint() {
+  input_local_fingerprint
+}
+
+module_run() {
+  local dir backend settings
+  dir=$(input_dir)
+  [[ -f $dir/backend ]] || delight_die "input is not configured; run: delight input enable" 1
+  backend=$(cat -- "$dir/backend")
+  settings=$(input_settings)
+  case "$backend" in
+    deskflow)
+      if [[ $(jq -r .role <<<"$settings") == "share" ]]; then
+        exec deskflow-core server -s "$dir/deskflow/Deskflow.conf"
+      else
+        exec deskflow-core client -s "$dir/deskflow/Deskflow.conf"
+      fi
+      ;;
+    lan-mouse)
+      exec lan-mouse -c "$dir/lan-mouse/config.toml" --cert-path "$dir/lan-mouse/lan-mouse.pem" daemon
+      ;;
+    *)
+      delight_die "unknown backend '$backend'" 1
+      ;;
+  esac
+}
+
+module_devices() {
+  local backend peers out='[]' peer name host edge connected
+  backend=$(input_backend)
+  peers=$(delight_config_get input peers 2>/dev/null || echo '[]')
+  while IFS= read -r peer; do
+    [[ -n $peer ]] || continue
+    name=$(jq -r .name <<<"$peer")
+    host=$(jq -r .host <<<"$peer")
+    edge=$(jq -r .edge <<<"$peer")
+    connected=false
+    if input_peer_connected "$backend" "$name" "$host"; then
+      connected=true
+    fi
+    out=$(jq -c --arg id "$name" --arg name "$name" --arg host "$host" --arg edge "$edge" \
+      --arg transport "$backend" --argjson connected "$connected" \
+      '. + [{id:$id, name:$name, kind:"computer", transport:$transport, connected:$connected}]' <<<"$out")
+  done < <(jq -c '.[]?' <<<"$peers")
+  jq -c . <<<"$out"
+}
+
+module_status() {
+  local id=input name icon backend role subtitle reason devices actions selection peers
+  name=$(delight_module_field input '.name')
+  icon=$(delight_module_field input '.icon')
+  actions='[{"label":"Arrange","command":["delight","ui","summon","delight.input"]}]'
+  if ! delight_is_installed "$id"; then
+    delight_status_json --id "$id" --state needs-setup --title "$name" --subtitle "Not installed" \
+      --icon "$icon" --actions "$actions"
+    return 0
+  fi
+  selection=$(input_selection)
+  backend=$(jq -r .backend <<<"$selection")
+  role=$(jq -r .role <<<"$selection")
+  reason=$(jq -r '.reason // empty' <<<"$selection")
+  devices=$(module_devices --json)
+  peers=$(delight_config_get input peers 2>/dev/null || echo '[]')
+  if ! delight_module_enabled; then
+    delight_status_json --id "$id" --state off --title "$name" --subtitle "Off" --icon "$icon" \
+      --reason "$reason" --actions "$actions" --devices "$devices"
+    return 0
+  fi
+  local pretty first
+  if [[ $backend == "deskflow" ]]; then
+    pretty="Deskflow"
+  else
+    pretty="Lan Mouse"
+  fi
+  if [[ $(jq 'length' <<<"$peers") -eq 0 && $role == "share" ]]; then
+    subtitle="No neighbours — open Arrange"
+  elif [[ $(jq 'length' <<<"$peers") -eq 0 ]]; then
+    subtitle="Receiving via $pretty"
+  elif [[ $role == "share" ]]; then
+    first=$(jq -r '.[0] | "\(.name) → \(.edge)"' <<<"$peers")
+    subtitle="Sharing via $pretty · $first"
+  else
+    subtitle="Receiving via $pretty"
+  fi
+  delight_status_json --id "$id" --state on --title "$name" --subtitle "$subtitle" --icon "$icon" \
+    --reason "$reason" --actions "$actions" --devices "$devices"
+}
+
+# Exit 0 ok, 1 fixable, 2 unsupported hardware/compositor, 3 needs user action.
+module_doctor() {
+  local rc=0 pkg selection peers
+  if delight_hw_portal org.freedesktop.portal.InputCapture; then
+    echo "InputCapture portal: present"
+  else
+    echo "InputCapture portal: missing"
+  fi
+  if delight_hw_portal org.freedesktop.portal.RemoteDesktop; then
+    echo "RemoteDesktop portal: present"
+  else
+    echo "RemoteDesktop portal: missing"
+  fi
+  echo "Hyprland: release_input_capture bind SUPER+CTRL+ALT+ESCAPE (Lan Mouse: Ctrl+Shift+Super+Alt)"
+
+  selection=$(input_selection)
+  echo "role: $(jq -r .role <<<"$selection")"
+  echo "backend: $(jq -r .backend <<<"$selection")"
+  jq -r 'select(.reason) | "reason: " + .reason' <<<"$selection"
+
+  while IFS= read -r pkg; do
+    [[ -n $pkg ]] || continue
+    if ! delight_pkg_present "$pkg"; then
+      echo "missing package: $pkg (run: delight input install)"
+      rc=1
+    fi
+  done < <(delight_module_field input '.packages.repo[]?, .packages.aur[]?')
+
+  peers=$(delight_config_get input peers 2>/dev/null || echo '[]')
+  echo "peers: $(jq 'length' <<<"$peers")"
+  if [[ $(jq 'length' <<<"$peers") -eq 0 && $rc -eq 0 ]]; then
+    echo "no neighbours configured (run: delight ui summon delight.input)"
+    rc=3
+  fi
+  input_local_fingerprint | jq -r '"local fingerprint (\(.backend)): \(.local // "none yet")"'
+  return "$rc"
+}
+
+module_uninstall() {
+  delight_module_default_uninstall
+  delight_rm "$(input_dir)"
+}
+
+delight_module_main "$@"
