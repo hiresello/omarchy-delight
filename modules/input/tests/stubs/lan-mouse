@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# `lan-mouse cli list` prints the contents of the file $INPUT_TEST_LANMOUSE
+# when set; every other invocation succeeds silently.
+printf '%s %s\n' "$(basename -- "$0")" "$*" >>"${DELIGHT_STUB_LOG:-/dev/null}"
+if [[ ${1:-} == "cli" && ${2:-} == "list" && -n ${INPUT_TEST_LANMOUSE:-} ]]; then
+  cat -- "$INPUT_TEST_LANMOUSE"
+fi
+exit 0

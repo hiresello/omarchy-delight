@@ -1,0 +1,19 @@
+port = 4242
+release_bind = ["KeyLeftCtrl", "KeyLeftShift", "KeyLeftMeta", "KeyLeftAlt"]
+capture_backend = "layer-shell"
+emulation_backend = "wlroots"
+
+[authorized_fingerprints]
+"aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99" = "mac"
+
+[[clients]]
+position = "right"
+hostname = "mac.local"
+port = 4242
+activate_on_startup = false
+
+[[clients]]
+position = "left"
+hostname = "mini.local"
+port = 4242
+activate_on_startup = false
