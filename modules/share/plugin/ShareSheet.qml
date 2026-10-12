@@ -75,6 +75,23 @@ Item {
       root.selectedIndex = Math.max(0, list.length - 1)
   }
 
+  function baseName(path) {
+    return String(path).split("/").pop()
+  }
+
+  function isImage(path) {
+    return /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(String(path))
+  }
+
+  function transportLabel(target) {
+    const id = String(target.id || "")
+    if (id.indexOf("airdrop:") === 0)
+      return "AirDrop"
+    if (id.indexOf("localsend:") === 0)
+      return "LocalSend"
+    return target.module || ""
+  }
+
   function kindGlyph(kind) {
     switch (kind) {
     case "phone": return "󰄜"
@@ -166,50 +183,61 @@ Item {
         anchors.fill: parent
         title: "Share"
 
-        implicitWidth: 420
+        implicitWidth: 480
 
         Row {
-          spacing: Tokens.spacing
+          spacing: Tokens.padding
 
           Rectangle {
-            width: 40
-            height: 40
+            width: 56
+            height: 56
             radius: Tokens.radiusSmall
             color: Tokens.surfaceRaised
+            clip: true
 
             Image {
               id: preview
               anchors.fill: parent
-              anchors.margins: 2
               fillMode: Image.PreserveAspectCrop
-              source: root.paths.length === 1 ? "file://" + root.paths[0] : ""
+              asynchronous: true
+              sourceSize.width: 112
+              sourceSize.height: 112
+              source: root.paths.length === 1 && root.isImage(root.paths[0]) ? "file://" + root.paths[0] : ""
               visible: status === Image.Ready
             }
             Text {
               anchors.centerIn: parent
               visible: !preview.visible
-              text: "󰒖"
+              text: root.paths.length > 1 ? "󰉋" : "󰈙"
               color: Tokens.foreground
               font.family: Tokens.fontFamily
-              font.pixelSize: Tokens.iconSize
+              font.pixelSize: Tokens.iconSize * 1.6
             }
           }
 
           Column {
             anchors.verticalCenter: parent.verticalCenter
+            spacing: 2
+            width: sheet.width - Tokens.padding * 3 - 56
 
             Text {
-              text: root.paths.length === 1
-                ? String(root.paths[0]).split("/").pop()
-                : root.paths.length + " files"
+              width: parent.width
+              elide: Text.ElideMiddle
+              text: root.paths.length === 0
+                ? "Nothing to share"
+                : root.paths.length === 1 ? root.baseName(root.paths[0]) : root.paths.length + " items"
               color: Tokens.foreground
               font.family: Tokens.fontFamily
-              font.pixelSize: Tokens.fontSize
+              font.pixelSize: Tokens.fontSize + 1
               font.bold: true
             }
             Text {
-              visible: root.paths.length === 0
-              text: "Nothing to share"
+              width: parent.width
+              elide: Text.ElideMiddle
+              visible: root.paths.length > 0
+              text: root.paths.length === 1
+                ? String(root.paths[0]).split("/").slice(0, -1).join("/")
+                : root.paths.map(root.baseName).join(", ")
               color: Tokens.muted
               font.family: Tokens.fontFamily
               font.pixelSize: Tokens.fontSizeSmall
@@ -217,8 +245,14 @@ Item {
           }
         }
 
+        Rectangle {
+          width: sheet.width - Tokens.padding * 2
+          height: 1
+          color: Tokens.border
+        }
+
         Text {
-          visible: root.loading
+          visible: root.loading && root.targets.length === 0
           text: "Looking for devices…"
           color: Tokens.muted
           font.family: Tokens.fontFamily
@@ -227,7 +261,7 @@ Item {
 
         Text {
           visible: !root.loading && root.targets.length === 0
-          text: "No devices found — open LocalSend on your phone"
+          text: "No devices found. Open LocalSend on your phone and press R."
           color: Tokens.muted
           font.family: Tokens.fontFamily
           font.pixelSize: Tokens.fontSize
@@ -237,8 +271,9 @@ Item {
 
         Grid {
           id: grid
-          columns: 2
-          spacing: Tokens.spacing
+          columns: 4
+          columnSpacing: Tokens.spacing
+          rowSpacing: Tokens.spacing
           visible: root.targets.length > 0
           width: sheet.width - Tokens.padding * 2
 
@@ -250,59 +285,65 @@ Item {
 
               required property var modelData
               required property int index
+              readonly property bool selected: root.selectedIndex === target.index
 
-              width: (grid.width - Tokens.spacing) / 2
-              height: 48
+              width: (grid.width - Tokens.spacing * (grid.columns - 1)) / grid.columns
+              height: 104
               radius: Tokens.radius
-              color: root.selectedIndex === target.index
-                ? Tokens.surfaceRaised
-                : (area.containsMouse ? Tokens.surfaceRaised : Tokens.surface)
-              border.color: root.selectedIndex === target.index ? Tokens.accent : Tokens.border
-              border.width: 1
+              color: target.selected || area.containsMouse ? Tokens.surface : "transparent"
 
               Rectangle {
                 id: badge
-                anchors.left: parent.left
-                anchors.leftMargin: Tokens.spacing
-                anchors.verticalCenter: parent.verticalCenter
-                width: 30
-                height: 30
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.top: parent.top
+                anchors.topMargin: Tokens.spacing
+                width: 52
+                height: 52
                 radius: width / 2
-                color: Tokens.stateColor("on")
+                color: target.selected ? Tokens.accent : Tokens.surfaceRaised
+                border.color: target.selected ? Tokens.accent : Tokens.border
+                border.width: 1
+
+                Behavior on color {
+                  ColorAnimation { duration: Tokens.animationFast }
+                }
 
                 Text {
                   anchors.centerIn: parent
                   text: root.kindGlyph(target.modelData.kind)
-                  color: Tokens.background
+                  color: target.selected ? Tokens.background : Tokens.foreground
                   font.family: Tokens.fontFamily
-                  font.pixelSize: Tokens.iconSize - 2
+                  font.pixelSize: Tokens.iconSize + 6
                 }
               }
 
               Column {
-                anchors.left: badge.right
-                anchors.leftMargin: Tokens.spacing
+                anchors.top: badge.bottom
+                anchors.topMargin: 6
+                anchors.left: parent.left
                 anchors.right: parent.right
-                anchors.rightMargin: Tokens.spacing
-                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: 4
+                anchors.rightMargin: 4
                 spacing: 1
 
                 Text {
                   width: parent.width
+                  horizontalAlignment: Text.AlignHCenter
                   text: target.modelData.label
                   elide: Text.ElideRight
                   color: Tokens.foreground
                   font.family: Tokens.fontFamily
-                  font.pixelSize: Tokens.fontSize
+                  font.pixelSize: Tokens.fontSizeSmall + 1
+                  font.bold: target.selected
                 }
                 Text {
                   width: parent.width
-                  visible: typeof target.modelData.module === "string" && target.modelData.module !== "share"
-                  text: target.modelData.module || ""
+                  horizontalAlignment: Text.AlignHCenter
+                  text: root.transportLabel(target.modelData)
                   elide: Text.ElideRight
                   color: Tokens.muted
                   font.family: Tokens.fontFamily
-                  font.pixelSize: Tokens.fontSizeSmall
+                  font.pixelSize: Tokens.fontSizeSmall - 1
                 }
               }
 

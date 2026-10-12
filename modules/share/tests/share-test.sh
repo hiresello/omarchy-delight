@@ -42,6 +42,20 @@ out=$("$BIN" share-targets --json) # stubbed ip reports no interfaces
 is "share-targets with no network gives []" "$out" "[]"
 ok "share-targets never exits non-zero" "$BIN" share-targets --json
 
+# Live discovery: one RFC1918 iface, curl answers /register only for .20.
+echo "192.168.50.10" >"$DELIGHT_STUB_STATE/ips"
+echo '192.168.50.20 {"alias":"Pixel 8","version":"2.2","deviceType":"mobile","fingerprint":"fp1"}' \
+  >"$DELIGHT_STUB_STATE/net-peers"
+"$DELIGHT_TEST_REPO/bin/delight" config set share.discoveryTimeout 1 >/dev/null
+rm -f "$XDG_RUNTIME_DIR/omarchy-delight/share/peers.json"
+out=$("$BIN" share-targets --json)
+is "discovery finds the one peer" "$(jq length <<<"$out")" "1"
+is "peer cached with ip+protocol" \
+  "$(jq -r '.[0] | "\(.ip) \(.protocol)"' "$XDG_RUNTIME_DIR/omarchy-delight/share/peers.json")" "192.168.50.20 https"
+is "discovered target id uses fingerprint" "$(jq -r '.[0].id' <<<"$out")" "localsend:fp1"
+is "discovered target kind is phone" "$(jq -r '.[0].kind' <<<"$out")" "phone"
+rm -f "$DELIGHT_STUB_STATE/ips" "$DELIGHT_STUB_STATE/net-peers"
+
 # --- doctor / enable --airdrop ----------------------------------------------
 
 rc=0

@@ -80,16 +80,18 @@ share_discover() {
       # runs when something answered but TLS/JSON failed. -P 128 keeps the
       # whole sweep within ~discoveryTimeout+1s.
       sort -u "$tmp/hosts" | xargs -P 128 -I{} bash -c '
-        ip="$1"; out="$2"; self="$3"; t="$4"; ownfp="$5"; reply=""; rc=0
+        ip="$1"; out="$2"; self="$3"; t="$4"; ownfp="$5"; reply=""; rc=0; proto=https
         reply=$(curl -sS -k --connect-timeout 0.5 --max-time "$t" -H "Content-Type: application/json" \
           -d "$self" "https://$ip:53317/api/localsend/v2/register" 2>/dev/null) || rc=$?
         if ! jq -e "type == \"object\" and (.alias // \"\") != \"\"" <<<"$reply" >/dev/null 2>&1; then
           ((rc == 7 || rc == 28)) && exit 0
+          proto=http
           reply=$(curl -sS --connect-timeout 0.5 --max-time "$t" -H "Content-Type: application/json" \
             -d "$self" "http://$ip:53317/api/localsend/v2/register" 2>/dev/null) || true
         fi
         if ! jq -e "type == \"object\" and (.alias // \"\") != \"\"" <<<"$reply" >/dev/null 2>&1; then
           for scheme in https http; do
+            proto=$scheme
             extra=()
             [[ $scheme == https ]] && extra=(-k)
             reply=$(curl -sS "${extra[@]}" --connect-timeout 0.5 --max-time "$t" \
@@ -98,7 +100,7 @@ share_discover() {
           done
         fi
         jq -e "type == \"object\" and (.alias // \"\") != \"\"" <<<"$reply" >/dev/null 2>&1 || exit 0
-        jq -c --arg ip "$ip" --arg proto "$scheme" --arg fp "$ownfp" \
+        jq -c --arg ip "$ip" --arg proto "$proto" --arg fp "$ownfp" \
           "select((.fingerprint // \"\") != \$fp) + {ip:\$ip, protocol:\$proto}" <<<"$reply" \
           >"$out/peer-$ip.json"
       ' _ {} "$tmp" "$(share_self_info)" "$timeout" "$(share_fingerprint)" 2>/dev/null || true

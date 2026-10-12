@@ -24,8 +24,8 @@ elif [[ $url == *upload* ]]; then
 elif [[ $url == *register* || $url == *info* ]]; then
   # discovery probe: answer only the hosts listed in state/net-peers
   ip=$(sed -E 's|^https?://([^:/]+).*|\1|' <<<"$url")
-  if [[ -f $state/net-peers ]] && grep -q "^$ip" "$state/net-peers"; then
-    grep "^$ip" "$state/net-peers" | cut -d' ' -f2-
+  if [[ -f $state/net-peers ]] && grep -qF "$ip " "$state/net-peers"; then
+    grep -F "$ip " "$state/net-peers" | cut -d' ' -f2-
   else
     exit 7
   fi
