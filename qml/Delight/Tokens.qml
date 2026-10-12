@@ -140,7 +140,6 @@ QtObject {
 
   readonly property FileView configFile: FileView {
     path: (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/omarchy-delight/config.json"
-    blockLoading: true
     printErrors: false
     onLoaded: {
       let font = ""

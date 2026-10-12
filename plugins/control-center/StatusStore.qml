@@ -113,7 +113,10 @@ Item {
       let tb = b.title.toLowerCase()
       return ta < tb ? -1 : ta > tb ? 1 : (a.id < b.id ? -1 : 1)
     })
-    if (JSON.stringify(list) !== JSON.stringify(modules)) {
+    // Modules rewrite status with a fresh `updated` stamp on every check; the
+    // UI never shows it, so a stamp-only rewrite must not rebuild every tile.
+    let key = v => JSON.stringify(v, (k, x) => k === "updated" ? undefined : x)
+    if (key(list) !== key(modules)) {
       modules = list
       changed()
     }

@@ -23,6 +23,8 @@ Item {
   // dismiss layers would never see a click. Hold it briefly to take focus on
   // open (as upstream KeyboardPanel does), then settle on OnDemand.
   property bool focusPrimed: false
+  // The dismiss layers map once the card is up, keeping them off the open path.
+  property bool dismissArmed: false
   readonly property string pluginId: "delight.control-center"
   property alias store: statusStore
   property alias actions: commands
@@ -35,7 +37,6 @@ Item {
       requestClose()
       return
     }
-    Tokens.refresh()
     let centred = payload.anchorX > 0 && payload.barWidth > 0
       ? Math.round(payload.barWidth - payload.anchorX - Tokens.sheetWidth / 2) : 0
     rightInset = Math.max(Tokens.edgeGap, centred)
@@ -45,12 +46,16 @@ Item {
     if (window.backingWindowVisible) focusPrimeTimer.restart()
     statusStore.refresh()
     catalog.refresh()
-    Qt.callLater(function() { content.focusFirst() })
+    Qt.callLater(function() {
+      content.focusFirst()
+      Tokens.refresh()
+    })
   }
 
   function close() {
     opened = false
     focusPrimed = false
+    dismissArmed = false
     content.showInstall = false
     content.toast.hide()
   }
@@ -94,7 +99,7 @@ Item {
     delegate: PanelWindow {
       required property var modelData
       screen: modelData
-      visible: root.opened
+      visible: root.opened && root.dismissArmed
       color: "transparent"
       anchors { top: true; bottom: true; left: true; right: true }
       exclusionMode: ExclusionMode.Ignore
@@ -137,7 +142,10 @@ Item {
     Timer {
       id: focusPrimeTimer
       interval: 75
-      onTriggered: if (root.opened) root.focusPrimed = true
+      onTriggered: if (root.opened) {
+        root.focusPrimed = true
+        root.dismissArmed = true
+      }
     }
 
     // The surface's transparent shadow margin overlaps the bar strip, so a
