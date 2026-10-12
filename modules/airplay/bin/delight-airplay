@@ -1,0 +1,291 @@
+#!/bin/bash
+
+set -euo pipefail
+
+DELIGHT_ROOT=$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../../.." && pwd)
+# shellcheck source=../../../lib/delight/delight.sh
+source "$DELIGHT_ROOT/lib/delight/delight.sh"
+# shellcheck source=../lib/airplay.sh
+source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../lib/airplay.sh"
+
+DELIGHT_MODULE_ID=$(basename -- "${BASH_SOURCE[0]}")
+DELIGHT_MODULE_ID=${DELIGHT_MODULE_ID#delight-}
+
+# Exit 0 ok, 1 fixable, 2 unsupported hardware/compositor, 3 needs user action.
+module_doctor() {
+  local has_shairport=false version="" nqptp_active=false
+  local ss_output line local_addr users="" bound319=false bound320=false
+  local missing_rule=false ufw_status rule proto ports cidr found public_rule
+  local conflict_system=false conflict_user=false installed=false enabled=false
+  AIRPLAY_DOCTOR_RC=0
+
+  if delight_pkg_present shairport-sync; then
+    has_shairport=true
+  fi
+  if [[ $has_shairport == true ]] && delight_pkg_present nqptp; then
+    airplay_doctor_record 0 ok "packages shairport-sync and nqptp are present"
+  else
+    airplay_doctor_record 1 fix "packages are missing; run: delight airplay install"
+  fi
+  if [[ $has_shairport == true ]]; then
+    version=$(shairport-sync -V 2>&1 || true)
+    if [[ $version == *AirPlay2* ]]; then
+      airplay_doctor_record 0 ok "shairport-sync supports AirPlay 2"
+    else
+      airplay_doctor_record 2 unsupported "shairport-sync lacks AirPlay 2 support"
+    fi
+  fi
+
+  if systemctl is-active -q avahi-daemon.service >/dev/null 2>&1; then
+    airplay_doctor_record 0 ok "avahi-daemon.service is active"
+  else
+    airplay_doctor_record 1 fix "run: sudo systemctl enable --now avahi-daemon.service"
+  fi
+  if systemctl is-active -q nqptp.service >/dev/null 2>&1; then
+    nqptp_active=true
+    airplay_doctor_record 0 ok "nqptp.service is active"
+  else
+    airplay_doctor_record 1 fix "run: sudo systemctl enable --now nqptp.service"
+  fi
+
+  ss_output=$(ss -Hlunp 2>/dev/null || true)
+  while IFS= read -r line; do
+    local_addr=$(awk '{print $4}' <<<"$line")
+    case "${local_addr##*:}" in
+      319) bound319=true ;;
+      320) bound320=true ;;
+      *) continue ;;
+    esac
+    if [[ $line == *users:* ]]; then
+      users=$(sed -n 's/.*\(users:.*\)$/\1/p' <<<"$line")
+    fi
+  done <<<"$ss_output"
+  if [[ $nqptp_active == true && $bound319 == true && $bound320 == true ]]; then
+    airplay_doctor_record 0 ok "UDP 319/320 are held by nqptp"
+  elif [[ $nqptp_active != true && ($bound319 == true || $bound320 == true) ]]; then
+    airplay_doctor_record 3 action "UDP 319/320 are held by another process${users:+ ($users)}; stop it (e.g. ptp4l) so nqptp can bind them"
+  elif [[ $nqptp_active == true ]]; then
+    airplay_doctor_record 1 fix "nqptp is running but not bound to 319/320; sudo systemctl restart nqptp.service"
+  else
+    airplay_doctor_record 1 fix "UDP 319/320 are not bound; start nqptp with: sudo systemctl enable --now nqptp.service"
+  fi
+
+  if systemctl --user is-active -q pipewire.service >/dev/null 2>&1; then
+    airplay_doctor_record 0 ok "PipeWire is running in this session"
+  else
+    airplay_doctor_record 3 action "PipeWire is not running in this session"
+  fi
+
+  if systemctl is-active -q shairport-sync.service >/dev/null 2>&1; then
+    conflict_system=true
+    airplay_doctor_record 1 fix "disable the packaged system unit: sudo systemctl disable --now shairport-sync.service"
+  fi
+  if systemctl --user is-active -q shairport-sync.service >/dev/null 2>&1; then
+    conflict_user=true
+    airplay_doctor_record 1 fix "disable the packaged user unit: systemctl --user disable --now shairport-sync.service"
+  fi
+  if [[ $conflict_system != true && $conflict_user != true ]]; then
+    airplay_doctor_record 0 ok "no packaged shairport-sync.service is active"
+  fi
+
+  if ! delight_has_cmd ufw; then
+    airplay_doctor_record 0 ok "ufw not installed; no rules needed"
+  elif ! ufw_status=$(sudo -n ufw status 2>/dev/null); then
+    airplay_doctor_record 0 ok "cannot read ufw without sudo; verify with: sudo ufw status | grep omarchy-delight:airplay"
+  else
+    while IFS= read -r rule; do
+      [[ -n $rule ]] || continue
+      proto=$(jq -r '.proto' <<<"$rule")
+      ports=$(jq -r '.ports' <<<"$rule")
+      for cidr in "${DELIGHT_PRIVATE_CIDRS[@]}"; do
+        found=false
+        while IFS= read -r line; do
+          if [[ $line == *"$ports/$proto"* && $line == *"$cidr"* && $line == *omarchy-delight:airplay* ]]; then
+            found=true
+            break
+          fi
+        done <<<"$ufw_status"
+        if [[ $found != true ]]; then
+          missing_rule=true
+          airplay_doctor_record 1 fix "missing firewall rule $ports/$proto; run: delight airplay install"
+        fi
+      done
+    done < <(delight_module_field airplay '.firewall[]? | tojson')
+    public_rule=false
+    while IFS= read -r line; do
+      if [[ $line == *omarchy-delight:airplay* && $line == *Anywhere* && $line != *"on tailscale0"* ]]; then
+        public_rule=true
+        break
+      fi
+    done <<<"$ufw_status"
+    if [[ $public_rule == true ]]; then
+      airplay_doctor_record 1 fix "public firewall rule found"
+    elif [[ $missing_rule != true ]]; then
+      airplay_doctor_record 0 ok "firewall rules are private-network only"
+    fi
+  fi
+
+  delight_is_installed airplay && installed=true
+  delight_module_enabled && enabled=true
+  if [[ $installed == true && $enabled == true ]]; then
+    if systemctl --user is-active -q delight-airplay.service >/dev/null 2>&1; then
+      airplay_doctor_record 0 ok "delight-airplay.service is active"
+    else
+      airplay_doctor_record 1 fix "see: journalctl --user -u delight-airplay -n 50"
+    fi
+  fi
+  if ((AIRPLAY_DOCTOR_RC == 0)); then
+    echo ok
+  fi
+  return "$AIRPLAY_DOCTOR_RC"
+}
+
+airplay_doctor_record() {
+  local code="$1" prefix="$2" message="$3"
+  printf '%s: %s\n' "$prefix" "$message"
+  if ((code > AIRPLAY_DOCTOR_RC)); then
+    AIRPLAY_DOCTOR_RC=$code
+  fi
+}
+
+module_install() {
+  local enabled_system=false enabled_user=false
+  delight_module_default_install
+  if ! systemctl is-enabled -q nqptp.service; then
+    delight_run sudo systemctl enable --now nqptp.service
+    delight_state_flag_set airplay nqptpEnabled true
+  fi
+  airplay_write_conf
+  if systemctl is-enabled -q shairport-sync.service; then
+    enabled_system=true
+  fi
+  if systemctl --user is-enabled -q shairport-sync.service; then
+    enabled_user=true
+  fi
+  if [[ $enabled_system == true ]]; then
+    delight_warn "packaged system shairport-sync.service is enabled; disable it with: sudo systemctl disable --now shairport-sync.service"
+  fi
+  if [[ $enabled_user == true ]]; then
+    delight_warn "packaged user shairport-sync.service is enabled; disable it with: systemctl --user disable --now shairport-sync.service"
+  fi
+}
+
+module_uninstall() {
+  if [[ $(delight_state_flag_get airplay nqptpEnabled) == true ]]; then
+    delight_run sudo systemctl disable --now nqptp.service
+  fi
+  delight_module_default_uninstall
+  delight_rm "$(airplay_runtime_dir)"
+}
+
+module_enable() {
+  delight_is_installed airplay || delight_die "not installed; run: delight airplay install" 1
+  airplay_write_conf
+  delight_rm "$(airplay_now_playing_path)"
+  delight_module_default_enable
+}
+
+module_disable() {
+  delight_module_default_disable
+  delight_rm "$(airplay_now_playing_path)"
+}
+
+module_status() {
+  local subtitle reason name title artist sender status_devices active_state now_playing
+  if ! delight_is_installed airplay; then
+    delight_module_default_status
+    return 0
+  fi
+  if ! delight_module_enabled; then
+    delight_status_json --id airplay --state off --title AirPlay --subtitle Off --icon "󰑈"
+    return 0
+  fi
+  name=$(airplay_name)
+  if systemctl --user is-active -q delight-airplay.service >/dev/null 2>&1; then
+    now_playing=$(airplay_read_now_playing)
+    title=$(jq -r '.title // ""' <<<"$now_playing")
+    artist=$(jq -r '.artist // ""' <<<"$now_playing")
+    sender=$(jq -r '.sender // ""' <<<"$now_playing")
+    if [[ -n $title && -n $artist ]]; then
+      subtitle="$title · $artist"
+    elif [[ -n $title ]]; then
+      subtitle=$title
+    elif [[ $(jq -r '.playing // false' <<<"$now_playing") == true && -n $sender ]]; then
+      subtitle="Playing from $sender"
+    else
+      subtitle="Receiving as $name"
+    fi
+    status_devices=$(airplay_devices_json)
+    delight_status_json --id airplay --state on --title AirPlay --subtitle "$subtitle" --icon "󰑈" --devices "$status_devices"
+    return 0
+  fi
+  active_state=$(systemctl --user is-active delight-airplay.service 2>/dev/null || true)
+  case "$active_state" in
+    activating | reloading)
+      delight_status_json --id airplay --state busy --title AirPlay --subtitle "Starting…" --icon "󰑈"
+      ;;
+    *)
+      reason="delight-airplay.service is ${active_state:-inactive}; run: delight airplay doctor"
+      delight_status_json --id airplay --state error --title AirPlay --subtitle Error --icon "󰑈" --reason "$reason"
+      ;;
+  esac
+}
+
+module_devices() {
+  airplay_devices_json
+}
+
+module_rename() {
+  local name
+  (($# == 1)) || delight_die "usage: delight airplay rename <name>" 64
+  name=$1
+  if [[ ${#name} -lt 1 || ${#name} -gt 50 || $name == *%* ]] || printf '%s' "$name" | LC_ALL=C grep -q '[[:cntrl:]]'; then
+    delight_die "name must be 1–50 characters with no control characters or %" 64
+  fi
+  delight_config_set airplay name "$(jq -cn --arg v "$name" '$v')"
+  if delight_is_installed airplay; then
+    airplay_write_conf
+  fi
+  if delight_module_enabled; then
+    delight_run systemctl --user try-restart delight-airplay.service
+  fi
+  delight_module_publish
+  printf 'AirPlay name: %s\n' "$name"
+}
+
+module_open() {
+  local body
+  body=$(module_status | jq -r '.subtitle')
+  [[ -n $body ]] || body="Receiving as $(airplay_name)"
+  delight_notify airplay AirPlay "$body" || true
+  return 0
+}
+
+module_publish() {
+  delight_module_publish
+}
+
+module_render-conf() {
+  (($# == 2)) || delight_die "usage: delight airplay render-conf <name> <pipe>" 64
+  airplay_conf_render "$1" "$2"
+}
+
+module_metadata-parse() {
+  airplay_metadata_parse
+}
+
+module_metadata-listen() {
+  local runtime fifo
+  runtime=$(airplay_runtime_dir)
+  fifo=$(airplay_fifo_path)
+  delight_mkdir "$runtime"
+  if [[ ! -p $fifo ]]; then
+    delight_rm "$fifo"
+    delight_run mkfifo -m 600 -- "$fifo"
+  fi
+  delight_module_publish
+  exec 3<>"$fifo"
+  airplay_metadata_parse <&3
+}
+
+delight_module_main "$@"

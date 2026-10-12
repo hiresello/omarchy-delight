@@ -1,0 +1,35 @@
+#!/bin/bash
+
+printf 'systemctl %s\n' "$*" >>"${DELIGHT_STUB_LOG:-/dev/null}"
+args=("$@")
+verb=""
+for arg in "${args[@]}"; do
+  case "$arg" in
+    is-active | is-enabled)
+      verb=$arg
+      break
+      ;;
+  esac
+done
+unit=${args[-1]}
+state=${DELIGHT_STUB_STATE:-/tmp}
+
+case "$verb" in
+  is-active)
+    if [[ -f $state/active-$unit ]]; then
+      exit 0
+    fi
+    if [[ -f $state/state-$unit ]]; then
+      cat "$state/state-$unit"
+    else
+      echo inactive
+    fi
+    exit 3
+    ;;
+  is-enabled)
+    [[ -f $state/unit-$unit ]]
+    exit
+    ;;
+esac
+
+exec "$DELIGHT_TEST_REPO/tests/stubs/systemctl" "$@"

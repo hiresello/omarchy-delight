@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "id": "airplay",
+  "name": "AirPlay",
+  "icon": "󰑈",
+  "description": "AirPlay 2 audio receiver (shairport-sync + nqptp) — play from iPhone, iPad and Mac to this computer.",
+  "packages": { "repo": ["shairport-sync", "nqptp"], "aur": [] },
+  "units": ["delight-airplay.service", "delight-airplay-metadata.service"],
+  "firewall": [
+    { "proto": "udp", "ports": "319:320", "description": "PTP timing, nqptp" },
+    { "proto": "tcp", "ports": "3689", "description": "DACP remote control" },
+    { "proto": "udp", "ports": "5353", "description": "mDNS" },
+    { "proto": "tcp", "ports": "5353", "description": "mDNS" },
+    { "proto": "tcp", "ports": "5000", "description": "AirPlay RTSP" },
+    { "proto": "tcp", "ports": "7000", "description": "AirPlay 2 RTSP/HTTP" },
+    { "proto": "udp", "ports": "6000:6009", "description": "AirPlay audio/control" },
+    { "proto": "udp", "ports": "32768:60999", "description": "AirPlay 2 ephemeral streams" },
+    { "proto": "tcp", "ports": "32768:60999", "description": "AirPlay 2 ephemeral streams" }
+  ],
+  "capabilities": ["network", "audio"],
+  "provides": { "shareTargets": false, "devices": true },
+  "plugin": null,
+  "menu": [
+    { "id": "toggle", "label": "Toggle AirPlay", "icon": "󰑈", "action": "delight airplay toggle" }
+  ]
+}

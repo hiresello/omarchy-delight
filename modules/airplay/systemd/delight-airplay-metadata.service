@@ -1,0 +1,13 @@
+[Unit]
+Description=Omarchy Delight AirPlay now-playing watcher
+PartOf=delight.target
+BindsTo=delight-airplay.service
+After=delight-airplay.service
+
+[Service]
+ExecStart=%h/.local/share/omarchy-delight/modules/airplay/bin/delight-airplay metadata-listen
+Restart=on-failure
+RestartSec=2s
+
+[Install]
+WantedBy=delight.target

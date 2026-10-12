@@ -1,0 +1,5 @@
+#!/bin/bash
+
+if [[ -f ${DELIGHT_STUB_STATE:-/tmp}/ss.out ]]; then
+  cat "$DELIGHT_STUB_STATE/ss.out"
+fi

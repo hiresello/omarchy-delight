@@ -1,0 +1,22 @@
+[Unit]
+Description=Omarchy Delight AirPlay 2 receiver (shairport-sync)
+Documentation=https://github.com/hiresello/omarchy-delight/tree/main/modules/airplay
+PartOf=delight.target
+After=pipewire.service wireplumber.service
+Wants=pipewire.service delight-airplay-metadata.service
+Upholds=delight-airplay-metadata.service
+Conflicts=shairport-sync.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+ExecStartPre=/usr/bin/systemctl is-active -q avahi-daemon.service
+ExecStartPre=/usr/bin/systemctl is-active -q nqptp.service
+ExecStartPre=/bin/sh -c '! /usr/bin/systemctl is-active -q shairport-sync.service'
+ExecStart=/usr/bin/shairport-sync -c %h/.config/omarchy-delight/airplay/shairport-sync.conf
+ExecStopPost=-%h/.local/share/omarchy-delight/modules/airplay/bin/delight-airplay publish
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=delight.target
