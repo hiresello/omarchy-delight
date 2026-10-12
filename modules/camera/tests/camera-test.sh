@@ -42,7 +42,6 @@ run_reconcile() {
   script=${script%\'}
   script=${script//\$\$/\$}
   script=${script//%%/%}
-  script=$(sed 's|/usr/bin/v4l2loopback-ctl|v4l2loopback-ctl|g; s|/usr/bin/modprobe|modprobe|g' <<<"$script")
   /bin/sh -ec "$script"
 }
 
@@ -56,9 +55,10 @@ header_line=$(grep -n '^omarchy-pkg-add linux-omarchy-headers$' "$DELIGHT_STUB_L
 module_line=$(grep -n '^omarchy-pkg-add v4l2loopback-dkms$' "$DELIGHT_STUB_LOG" | head -n 1 | cut -d: -f1)
 ok "kernel headers are installed before v4l2loopback" test "$header_line" -lt "$module_line"
 not_ok "regular install never selects v4l2loopback-dc-dkms" grep -F v4l2loopback-dc-dkms "$DELIGHT_STUB_LOG"
-ok "service unit installed with systemctl edit stdin" grep -F "systemctl edit --stdin --force --full delight-camera-loopback-$(id -u).service" "$DELIGHT_STUB_LOG"
-ok "path unit installed with systemctl edit stdin" grep -F "systemctl edit --stdin --force --full delight-camera-loopback-$(id -u).path" "$DELIGHT_STUB_LOG"
+ok "systemd 249 uses sudo install for both root units" test "$(grep -Fc 'sudo install -Dm644' "$DELIGHT_STUB_LOG")" -eq 2
+not_ok "root units avoid unsupported systemctl edit stdin" grep -F "systemctl edit --stdin --force --full delight-camera-loopback-" "$DELIGHT_STUB_LOG"
 ok "rendered helper uses devices=0" grep -F 'devices=0' "$DELIGHT_CAMERA_SYSTEM_UNIT_DIR/delight-camera-loopback-$(id -u).service"
+ok "rendered helper disables start limit" grep -F 'StartLimitIntervalSec=0' "$DELIGHT_CAMERA_SYSTEM_UNIT_DIR/delight-camera-loopback-$(id -u).service"
 not_ok "rendered units contain no global module edits or unloads" grep -Ei 'modprobe\.d|rmmod|modprobe -r' "$DELIGHT_CAMERA_SYSTEM_UNIT_DIR"/*
 ok "no modprobe.d path appears in sandbox or command log" bash -c \
   '[[ -z $(find "$1" -path "*/modprobe.d/*" -type f -print -quit) ]] && ! grep -Fq modprobe.d "$2"' _ "$SANDBOX" "$DELIGHT_STUB_LOG"
@@ -90,6 +90,13 @@ ok "connect over USB with adb phone" "$BIN" connect --usb
 ok "exercise DroidCam USB stream arguments" "$BIN" _stream
 ok "USB Android uses adb transport" grep -F "droidcam-cli -nocontrols -dev=$device -size=1280x720 adb 4747" "$DELIGHT_STUB_LOG"
 ok "doctor succeeds with a connected phone" "$BIN" doctor
+export DELIGHT_CAMERA_CONNECT_WAIT=0.5 DELIGHT_STREAM_FAILS=1
+not_ok "failed Wi-Fi connection exits with failure" "$BIN" connect --wifi 192.0.2.1
+ok "connection failure notification is logged" grep -F "Continuity Camera connection failed" "$DELIGHT_STUB_LOG"
+not_ok "failed connection removes connection file" test -e "$XDG_RUNTIME_DIR/omarchy-delight/camera/connection.json"
+failed_status=$(status_json)
+is "failed connection returns to needs setup" "$(jq -r '.state + "|" + .subtitle' <<<"$failed_status")" "needs-setup|Connect your phone"
+unset DELIGHT_CAMERA_CONNECT_WAIT DELIGHT_STREAM_FAILS
 not_ok "bad IPv4 is rejected" "$BIN" set ip 999.1.1.1
 not_ok "bad port is rejected" "$BIN" set port 65536
 not_ok "bad size is rejected" "$BIN" set size 1280by720
@@ -128,7 +135,12 @@ doctor_rc=$?
 is "Secure Boot signed-module enforcement is unsupported" "$doctor_rc" "2"
 ok "doctor explains Secure Boot enforcement" grep -F 'unsupported Secure Boot enforces signed modules' <<<"$doctor_output"
 
+ok "enable camera before uninstall" "$BIN" enable
+ok "reconcile camera before uninstall" run_reconcile
 ok "camera uninstall" "$BIN" uninstall
+uninstall_listing=$(v4l2loopback-ctl list 2>/dev/null)
+not_ok "uninstall removes Continuity Camera" grep -F "Continuity Camera" <<<"$uninstall_listing"
+ok "uninstall preserves Cam Link" grep -F "Cam Link 4K" <<<"$uninstall_listing"
 not_ok "uninstall removes root service unit" test -e "$DELIGHT_CAMERA_SYSTEM_UNIT_DIR/delight-camera-loopback-$(id -u).service"
 not_ok "uninstall removes root path unit" test -e "$DELIGHT_CAMERA_SYSTEM_UNIT_DIR/delight-camera-loopback-$(id -u).path"
 not_ok "uninstall clears module state" test -e "$HOME/.local/state/omarchy-delight/camera"

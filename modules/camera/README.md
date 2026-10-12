@@ -105,23 +105,26 @@ over USB:
    delight camera connect --usb               # USB
    ```
 
-3. Check `v4l2loopback-ctl list` shows **Continuity Camera**.
+3. Check `sudo v4l2loopback-ctl list` shows **Continuity Camera**.
 4. Open <https://webcamtests.com> or a Chromium meeting app, choose
    **Continuity Camera**, and verify live video. In OBS, add **Video Capture
    Device (V4L2)** and choose **Continuity Camera**.
 5. Run `delight camera disconnect`; verify the disconnect notification and
    that the tile returns to **Connect your phone**.
 
+The device nodes may be root-only. To inspect names without elevated
+permissions, read `cat /sys/devices/virtual/video4linux/video*/name`.
+
 ## Virtual-machine check [VM]
 
 ```sh
 delight camera install
 delight camera enable
-v4l2loopback-ctl list
+sudo v4l2loopback-ctl list
 delight camera status --json
 sudo v4l2loopback-ctl add -n "Cam Link 4K" -x 1
 delight camera disable
-v4l2loopback-ctl list
+sudo v4l2loopback-ctl list
 delight camera uninstall
 ```
 

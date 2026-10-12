@@ -174,7 +174,8 @@ camera_install_system_units() {
     fi
     rendered=$(camera_render_system_unit "$template")
     version_output=$(systemctl --version 2>/dev/null | head -n 1 || true)
-    version=${version_output##* }
+    version=${version_output#systemd }
+    version=${version%% *}
     if [[ $version =~ ^[0-9]+$ ]] && ((version < 256)); then
       if delight_dry; then
         delight_dry_print sudo install -Dm644 "<rendered unit>" "$SYSTEM_UNIT_DIR/$unit"
@@ -224,6 +225,7 @@ module_install() {
 }
 
 module_uninstall() {
+  delight_is_installed camera && module_disable
   if camera_system_units_installed; then
     delight_run sudo systemctl start "$CAMERA_SYSTEM_SERVICE"
     delight_run sudo systemctl disable --now "$CAMERA_SYSTEM_PATH"
@@ -341,7 +343,7 @@ camera_phone_mdns() {
 }
 
 module_connect() {
-  local mode ip_arg="" backend device ip port size phone json
+  local mode ip_arg="" backend device ip port size phone json connection_wait wait_steps i stream_active=true
   mode=$(camera_config connection)
   backend=$(camera_config backend)
   if (($# > 0)); then
@@ -425,19 +427,26 @@ module_connect() {
     delight_module_publish
     return 0
   fi
-  for ((port = 0; port < 16; port++)); do
-    systemctl --user is-active --quiet delight-camera-stream.service && break
+  connection_wait=${DELIGHT_CAMERA_CONNECT_WAIT:-3}
+  [[ $connection_wait =~ ^[0-9]+([.][0-9]+)?$ ]] || connection_wait=3
+  wait_steps=$(awk -v seconds="$connection_wait" 'BEGIN { printf "%d", int(seconds * 4 + 0.999999) }')
+  for ((i = 0; i < wait_steps; i++)); do
+    if ! systemctl --user is-active --quiet delight-camera-stream.service; then
+      stream_active=false
+      break
+    fi
     sleep 0.25
   done
-  if systemctl --user is-active --quiet delight-camera-stream.service; then
+  if [[ $stream_active == true ]] && systemctl --user is-active --quiet delight-camera-stream.service; then
     if [[ $backend == "droidcam" && $PHONE_TRANSPORT == "wifi" ]]; then
       delight_config_set camera ip "$PHONE_IP"
     fi
     camera_publish
     delight_notify camera "Continuity Camera connected" "$phone · $size"
   else
-    camera_publish
     delight_notify camera "Continuity Camera connection failed" "Check the phone connection and run delight camera doctor."
+    delight_rm "$CAMERA_CONNECTION"
+    camera_publish
     return 1
   fi
 }

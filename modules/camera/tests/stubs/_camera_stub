@@ -14,7 +14,6 @@ run_reconcile() {
   script=${script%\'}
   script=${script//\$\$/\$}
   script=${script//%%/%}
-  script=$(sed 's|/usr/bin/v4l2loopback-ctl|v4l2loopback-ctl|g; s|/usr/bin/modprobe|modprobe|g' <<<"$script")
   /bin/sh -ec "$script"
 }
 
@@ -35,7 +34,7 @@ case "$name" in
     ;;
   systemctl)
     if [[ ${1:-} == "--version" ]]; then
-      printf 'systemd 256\n'
+      printf 'systemd 249 (249.11-0ubuntu3.21)\n'
       exit 0
     fi
     if [[ ${1:-} == "edit" ]]; then
@@ -54,7 +53,14 @@ case "$name" in
       unit=${!#}
       case "$action" in
         is-active) [[ -f $state/active-$unit ]]; exit ;;
-        restart) touch "$state/active-$unit"; exit 0 ;;
+        restart)
+          if [[ ${DELIGHT_STREAM_FAILS:-0} == 1 ]]; then
+            rm -f "$state/active-$unit"
+          else
+            touch "$state/active-$unit"
+          fi
+          exit 0
+          ;;
         stop) rm -f "$state/active-$unit"; exit 0 ;;
         enable)
           touch "$state/enabled-$unit" "$state/active-$unit"
