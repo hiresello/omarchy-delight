@@ -14,7 +14,9 @@ hotspot_nm_fixture() {
       {name:"TestHotspot",uuid:"hotspot-uuid",type:"802-11-wireless",ssid:"TestHotspot",autoconnect:"no",priority:7,metered:"unknown"},
       {name:"Home",uuid:"home-uuid",type:"802-11-wireless",ssid:"Home",autoconnect:"yes",priority:5,metered:"no"},
       {name:"Other",uuid:"other-uuid",type:"802-11-wireless",ssid:"Other",autoconnect:"yes",priority:0,metered:"no"},
-      {name:"Low",uuid:"low-uuid",type:"802-11-wireless",ssid:"Low",autoconnect:"yes",priority:-3,metered:"no"}
+      {name:"Low",uuid:"low-uuid",type:"802-11-wireless",ssid:"Low",autoconnect:"yes",priority:-3,metered:"no"},
+      {name:"Ethernet",uuid:"ethernet-uuid",type:"802-3-ethernet",autoconnect:"yes",priority:-999,metered:"no"},
+      {name:"Loopback",uuid:"loopback-uuid",type:"loopback",autoconnect:"yes",priority:-50,metered:"no"}
     ],
     active:[],
     devices:[{type:"wifi",state:"disconnected"}],

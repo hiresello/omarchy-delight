@@ -198,6 +198,19 @@ hotspot_run_watch 3003
 not_ok "AC power resumes presence sampling" test \
   "$(jq -r '.presence' "$XDG_RUNTIME_DIR/omarchy-delight/hotspot/proximity.json")" = paused
 
+trace_file="$SANDBOX/trace.tsv"
+: >"$DELIGHT_STUB_LOG"
+hotspot_bt_fixture
+set +e
+timeout 2 "$bin" trace record "$trace_file" --duration 0 --interval 0.1 >/dev/null 2>&1
+trace_rc=$?
+set -e
+is "zero-duration trace recording continues until stopped" "$trace_rc" "124"
+ok "trace recording writes a numeric RSSI sample" \
+  grep -Eq '^[0-9]+[[:space:]]+-?[0-9]+[[:space:]]+[01]$' "$trace_file"
+ok "trace recording starts Bluetooth discovery" \
+  grep -Fq 'bluetoothctl --timeout 1 scan on' "$DELIGHT_STUB_LOG"
+
 export DELIGHT_SYSFS="$SANDBOX/no-adapter"
 hotspot_run_watch 3100
 is "watcher reports unknown without adapter" \

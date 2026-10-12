@@ -77,6 +77,24 @@ hotspot_nm_connections_json() {
   printf '%s\n' "$result"
 }
 
+hotspot_nm_min_other_wifi_priority() {
+  local uuid="$1" row other value minimum=""
+  while IFS= read -r row; do
+    other=$(jq -r .uuid <<<"$row")
+    [[ $other != "$uuid" ]] || continue
+    value=$(hotspot_nm_field "$other" connection.autoconnect-priority) || value=0
+    [[ $value =~ ^-?[0-9]+$ ]] || value=0
+    if [[ -z $minimum ]] || ((value < minimum)); then
+      minimum=$value
+    fi
+  done < <(hotspot_nm_connections_json | jq -c --arg uuid "$uuid" \
+    '.[] | select(.type == "802-11-wireless" and .uuid != $uuid)')
+  if [[ -n $minimum ]]; then
+    printf '%s\n' "$minimum"
+  fi
+  return 0
+}
+
 hotspot_nm_connection_uuids() {
   hotspot_nm_connections_json | jq -r '.[].uuid'
 }
@@ -142,15 +160,8 @@ hotspot_nm_previous() {
 }
 
 hotspot_nm_priority() {
-  local uuid="$1" other value minimum=""
-  while IFS= read -r other; do
-    [[ -n $other && $other != "$uuid" ]] || continue
-    value=$(hotspot_nm_field "$other" connection.autoconnect-priority) || value=0
-    [[ $value =~ ^-?[0-9]+$ ]] || value=0
-    if [[ -z $minimum ]] || ((value < minimum)); then
-      minimum=$value
-    fi
-  done < <(hotspot_nm_connection_uuids)
+  local uuid="$1" minimum
+  minimum=$(hotspot_nm_min_other_wifi_priority "$uuid")
   [[ -n $minimum ]] || minimum=0
   if ((minimum <= -998)); then
     printf '%s\n' -999

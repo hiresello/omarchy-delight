@@ -48,7 +48,7 @@ ok "devices JSON matches schema" schema_valid "$DELIGHT_TEST_REPO/schema/device.
 export DELIGHT_SYSFS="$SANDBOX/no-adapter"
 status=$("$bin" status --json)
 is "configured status without adapter is unsupported" "$(jq -r .state <<<"$status")" "unsupported"
-is "unsupported configured status offers connect" "$(jq -r '.actions[0].label' <<<"$status")" "Connect to phone hotspot"
+is "unsupported configured status offers connect" "$(jq -r '.actions[0].label' <<<"$status")" "Connect to Pixel 8 hotspot"
 export DELIGHT_SYSFS="$SANDBOX/sys"
 is "configured doctor succeeds" "$(
   "$bin" doctor >/dev/null 2>&1

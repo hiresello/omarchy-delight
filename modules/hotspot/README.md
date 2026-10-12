@@ -168,7 +168,10 @@ enabling an automatic lock hint.
 
 3. At a desk, record and replay an hour of samples. The replay should not
    report an away transition; with the lock hint enabled, also verify that a
-   live hour at the desk causes no false lock:
+   live hour at the desk causes no false lock. Recording uses the same bounded
+   Bluetooth discovery scan as the watcher, then waits `scan.interval`
+   seconds between samples by default. Use `--interval S` to override the
+   cadence; RSSI may still be unavailable if BlueZ does not expose it:
 
    ```bash
    delight hotspot trace record ~/desk.tsv --duration 3600
@@ -186,8 +189,8 @@ enabling an automatic lock hint.
 
 ## Diagnostics
 
-`delight hotspot trace record FILE --duration SECONDS` records timestamped
-RSSI and connection samples; `trace replay FILE` runs a deterministic sample
-through the same proximity state machine without Bluetooth or Wi-Fi side
-effects. Traces may contain device-proximity timing, so keep recorded files
-private.
+`delight hotspot trace record FILE [--duration SECONDS] [--interval SECONDS]`
+records timestamped RSSI and connection samples using Bluetooth discovery;
+`trace replay FILE` runs a deterministic sample through the same proximity
+state machine without Bluetooth or Wi-Fi side effects. Traces may contain
+device-proximity timing, so keep recorded files private.

@@ -2,6 +2,7 @@
 
 source "$(dirname -- "${BASH_SOURCE[0]}")/../../../tests/lib/tap.sh"
 source "$(dirname -- "${BASH_SOURCE[0]}")/test-lib"
+source "$DELIGHT_TEST_REPO/modules/hotspot/lib/nm.sh"
 
 hotspot_test_init
 hotspot_nm_fixture
@@ -15,7 +16,7 @@ hotspot_setup
 is "setup works without a Bluetooth adapter" \
   "$(jq -r '.modules.hotspot.phone.mac' "$HOME/.config/omarchy-delight/config.json")" \
   "AA:BB:CC:DD:EE:FF"
-is "target priority is below every other profile" "$(jq -r '.connections[] | select(.uuid == "hotspot-uuid") | .priority' "$DELIGHT_STUB_STATE/nm.json")" "-4"
+is "target priority is below every other Wi-Fi profile" "$(jq -r '.connections[] | select(.uuid == "hotspot-uuid") | .priority' "$DELIGHT_STUB_STATE/nm.json")" "-4"
 is "target autoconnect is enabled" "$(jq -r '.connections[] | select(.uuid == "hotspot-uuid") | .autoconnect' "$DELIGHT_STUB_STATE/nm.json")" "yes"
 is "target profile is metered" "$(jq -r '.connections[] | select(.uuid == "hotspot-uuid") | .metered' "$DELIGHT_STUB_STATE/nm.json")" "yes"
 is "other profiles are byte-identical" "$(jq -c '[.connections[] | select(.uuid != "hotspot-uuid")]' "$DELIGHT_STUB_STATE/nm.json")" "$other_before"
@@ -23,6 +24,30 @@ ok "exact modify argv is logged" grep -Fq 'nmcli connection modify uuid hotspot-
 is "previous NetworkManager values are recorded" \
   "$(jq -c '.flags.nm.prev' "$HOME/.local/state/omarchy-delight/hotspot/installed.json")" \
   '{"autoconnect":"no","priority":"7","metered":"unknown"}'
+
+status=$("$bin" status --json)
+is "unsupported status names the configured phone in its connect action" \
+  "$(jq -r '.actions[0].label' <<<"$status")" "Connect to Pixel 8 hotspot"
+hotspot_set phone.name ""
+status=$("$bin" status --json)
+is "unsupported status falls back to phone in its connect action" \
+  "$(jq -r '.actions[0].label' <<<"$status")" "Connect to phone hotspot"
+hotspot_set phone.name "Pixel 8"
+
+export DELIGHT_SYSFS="$SANDBOX/sys"
+is "doctor ignores Ethernet and loopback priorities" "$("$bin" doctor)" "ok"
+priority_state=$(jq -c . "$DELIGHT_STUB_STATE/nm.json")
+jq '(.connections |= map(select(.uuid == "hotspot-uuid" or .type != "802-11-wireless"))) |
+  (.connections[] | select(.uuid == "hotspot-uuid") | .priority) = 0' \
+  "$DELIGHT_STUB_STATE/nm.json" >"$DELIGHT_STUB_STATE/nm.tmp"
+mv "$DELIGHT_STUB_STATE/nm.tmp" "$DELIGHT_STUB_STATE/nm.json"
+is "priority helper is empty without another saved Wi-Fi profile" \
+  "$(hotspot_nm_min_other_wifi_priority hotspot-uuid)" ""
+is "priority defaults to -1 without another saved Wi-Fi profile" \
+  "$(hotspot_nm_priority hotspot-uuid)" "-1"
+is "doctor accepts priority when no other Wi-Fi profile exists" "$("$bin" doctor)" "ok"
+printf '%s\n' "$priority_state" >"$DELIGHT_STUB_STATE/nm.json"
+export DELIGHT_SYSFS="$SANDBOX/no-adapter"
 
 prev_before=$(jq -c '.flags.nm.prev' "$HOME/.local/state/omarchy-delight/hotspot/installed.json")
 hotspot_setup

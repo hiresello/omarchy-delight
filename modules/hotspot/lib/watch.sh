@@ -147,8 +147,28 @@ hotspot_autojoin_step() {
       '{attempts:$attempts,backoff:$backoff,nextAttempt:$next,last:$now}')"
 }
 
+hotspot_sample() {
+  local mac="$1" adapter="$2" connected rssi="" window
+  connected=$(hotspot_bt_connected "$mac" "$adapter" && echo 1 || echo 0)
+  if [[ $connected == 1 && $(delight_config_get hotspot proximity.connectedIsNear) == true ]]; then
+    :
+  elif [[ $(delight_config_get hotspot proximity.method) == connect ]]; then
+    if [[ $connected == 0 ]]; then
+      if delight_dry; then
+        delight_run timeout 10 bluetoothctl connect "$mac" >&2
+      elif delight_run_quiet timeout 10 bluetoothctl connect "$mac"; then
+        connected=1
+      fi
+    fi
+  else
+    window=$(delight_config_get hotspot scan.window)
+    rssi=$(hotspot_bt_scan_rssi "$mac" "$adapter" "$window" || true)
+  fi
+  printf '%s\t%s\n' "$rssi" "$connected"
+}
+
 hotspot_watch_iteration() {
-  local now="${DELIGHT_HOTSPOT_NOW:-$(date +%s)}" file adapter mac connected rssi window params next from to state presence uuid
+  local now="${DELIGHT_HOTSPOT_NOW:-$(date +%s)}" file adapter mac connected rssi sample params next from to state presence uuid
   file=$(hotspot_proximity_file)
   if [[ -z $(delight_config_get hotspot phone.mac) || -z $(delight_config_get hotspot connection) ]] \
     || ! delight_module_enabled; then
@@ -175,22 +195,9 @@ hotspot_watch_iteration() {
     return 0
   fi
   mac=$(delight_config_get hotspot phone.mac)
-  connected=$(hotspot_bt_connected "$mac" "$adapter" && echo 1 || echo 0)
-  rssi=""
-  if [[ $connected == 1 && $(delight_config_get hotspot proximity.connectedIsNear) == true ]]; then
-    :
-  elif [[ $(delight_config_get hotspot proximity.method) == connect ]]; then
-    if [[ $connected == 0 ]]; then
-      if delight_dry; then
-        delight_run timeout 10 bluetoothctl connect "$mac"
-      elif delight_run_quiet timeout 10 bluetoothctl connect "$mac"; then
-        connected=1
-      fi
-    fi
-  else
-    window=$(delight_config_get hotspot scan.window)
-    rssi=$(hotspot_bt_scan_rssi "$mac" "$adapter" "$window" || true)
-  fi
+  sample=$(hotspot_sample "$mac" "$adapter")
+  rssi=${sample%%$'\t'*}
+  connected=${sample#*$'\t'}
   state=""
   [[ -f $file ]] && state=$(<"$file")
   [[ -n $state ]] || state='{}'
