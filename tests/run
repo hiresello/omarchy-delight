@@ -9,7 +9,7 @@ ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 if (($# > 0)); then
   files=("$@")
 else
-  mapfile -t files < <(find "$ROOT/tests" "$ROOT/modules" -path "$ROOT/tests/lib" -prune -o -path '*/tests/*' -name '*.sh' -type f -print 2>/dev/null | sort)
+  mapfile -t files < <(find "$ROOT/tests" "$ROOT/modules" "$ROOT/plugins" -path "$ROOT/tests/lib" -prune -o -path '*/tests/*' -name '*.sh' -type f -print 2>/dev/null | sort)
 fi
 
 failed=()
