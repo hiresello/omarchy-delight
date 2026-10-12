@@ -22,7 +22,7 @@ Usage: delight <command>
   devices --json                    devices from all modules
   ui summon <plugin-id> [json]      open a Delight panel
   notify <id> <title> <body>        send a notification
-  sync                              regenerate Hyprland, menu and hook files
+  refresh                           regenerate Hyprland, menu and hook files
   dev new-module <id>               scaffold modules/<id> from templates/module
 USAGE
 }
@@ -150,7 +150,16 @@ main() {
       (($# >= 2)) || delight_die "usage: delight notify <id> <title> <body>" 64
       delight_notify "$1" "$2" "${3:-}"
       ;;
-    sync) delight_touchpoints_sync ;;
+    refresh) delight_touchpoints_sync ;;
+    sync)
+      # "sync" is also a module id; bare `delight sync` keeps the old refresh meaning.
+      if (($# == 0)); then
+        delight_touchpoints_sync
+      else
+        require_module sync
+        exec "$(module_bin sync)" "$@"
+      fi
+      ;;
     hook) cmd_hook "$@" ;;
     dev) cmd_dev "$@" ;;
     "" | help | -h | --help) usage ;;
