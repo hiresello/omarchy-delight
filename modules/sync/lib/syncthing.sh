@@ -215,7 +215,7 @@ def devices: . as $s | [remotes[] | {
   connected: ($s.connections.connections[.deviceID].connected // false)}];
 # `delight sync toggle` pauses every device (POST /rest/system/pause); a user
 # may also pause every folder from the Syncthing GUI.
-def paused: [.config.folders[]] as $f | remotes as $r
+def paused: [.config.folders[]] as $f | [.config.devices[]] as $r
   | (($r | length) > 0 and ($r | all(.paused))) or (($f | length) > 0 and ($f | all(.paused)));
 '
 

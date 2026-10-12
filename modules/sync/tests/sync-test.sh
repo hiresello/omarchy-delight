@@ -102,6 +102,9 @@ is "syncing is busy" "$(subtitle .state)" "busy"
 base_routes config-paused
 is "paused devices show as paused" "$(subtitle)" "Paused"
 is "paused is off" "$(subtitle .state)" "off"
+base_routes config-empty
+jq '.devices[].paused = true' "$HERE/fixtures/config-empty.json" | route GET /rest/config
+is "pausing with no peers yet still shows as paused" "$(subtitle)" "Paused"
 base_routes
 jq '.connections[].connected = false' "$HERE/fixtures/connections.json" | route GET /rest/system/connections
 is "a disconnected peer is named" "$(subtitle)" "phone-b disconnected"
