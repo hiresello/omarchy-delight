@@ -20,7 +20,7 @@ an optional Apple AirDrop mode on capable Wi-Fi adapters.
 
 | Verb | What it does |
 |---|---|
-| `sheet [paths...]` / `sheet --clipboard` | Open the share sheet. With no paths it asks `omarchy-file-select --multiple`. `--clipboard` pastes `wl-paste` into a temp file under `$XDG_RUNTIME_DIR/omarchy-delight/share/`. |
+| `sheet [paths...]` / `sheet --clipboard` | Open the share sheet. Nonexistent paths exit 64. With no paths it asks `omarchy-file-select --multiple`. `--clipboard` pastes `wl-paste` into `$XDG_RUNTIME_DIR/omarchy-delight/share/clipboard-<ts>.<ext>` — .txt/.png/.jpg/.bin from `--list-types`. The payload carries `delightBin` + the aggregated `delight share-targets --json` command, so the sheet lists every installed provider and dispatches `send` to the target's own `module`. |
 | `share-targets --json` | Discovered devices, per `schema/share-target.schema.json`. Never fails — prints `[]` on any error. `DELIGHT_SHARE_PEERS_FIXTURE=<file>` injects peers for tests. |
 | `send <target-id> <paths...>` | `localsend:<fingerprint-or-ip>` or `airdrop:<name>`. Unknown prefix exits 64. Directories are refused with a clear message. |
 | `enable --airdrop` | Adds the AUR packages `opendrop` + `owlink-git` and sets `airdrop=true`. Exits 2 when no monitor-mode adapter exists. |
@@ -32,11 +32,13 @@ an optional Apple AirDrop mode on capable Wi-Fi adapters.
 LocalSend normally finds peers over UDP multicast (224.0.0.167:53317). We do
 **not** use multicast: the LocalSend app on this machine already binds the
 port, and bash cannot receive multicast cleanly. Instead `discover` does HTTP
-legacy discovery per protocol §3.2 — it enumerates the /24 of every
-non-loopback UP IPv4 interface (`ip -j -4 addr`) and `POST`s
-`/api/localsend/v2/register` to every host in parallel (`xargs -P 64`, curl
-`--max-time` from `discoveryTimeout`, https first then http), with
-`/api/localsend/v2/info` as a fallback. Results are cached for 30s in
+legacy discovery per protocol §3.2 — it sweeps the /24 of every RFC1918 UP
+interface (`ip -j -4 addr`; docker/br-*/veth/virbr/tailscale/wg/lo skipped) and
+`POST`s one https `/api/localsend/v2/register` per host (`xargs -P 128`,
+`--connect-timeout 0.5 --max-time $discoveryTimeout`). http and `/info` are only
+tried when the port answered but TLS/JSON failed (curl exit ∉ {7,28}), so a
+sweep stays within ~`discoveryTimeout`+1s. Responders carrying our own
+fingerprint are dropped. Results are cached for 30s in
 `$XDG_RUNTIME_DIR/omarchy-delight/share/peers.json` and feed both
 `share-targets` and the tile subtitle.
 
@@ -59,7 +61,10 @@ shared-preferences JSON for changes via `inotifywait`. For each new
 "Reveal in Files" (click → `nautilus --select <path>`), message entries show
 their text. Honours `notifyReceive=false`. Limits: the LocalSend app must be
 the thing that actually receives (it owns port 53317); Delight only watches
-its history file.
+its history file. When localsend isn't running the unit starts it detached
+(`uwsm-app -- localsend --hidden`, else `systemd-run --user`) so stopping the
+service never kills the app. The runtime-dir seen-ids file is seeded from
+existing history on first run — reboots don't re-notify old transfers.
 
 Preferences file: `~/.local/share/org.localsend.localsend_app/shared_preferences.json`
 (APPLICATION_ID `org.localsend.localsend_app` in `app/linux/CMakeLists.txt`;
@@ -73,8 +78,10 @@ and frame injection (`delight_hw_wifi_monitor` checks `iw list`), and installs
 `opendrop` + `owlink-git` from the AUR — `opendrop` is seemoo-lab's open
 AirDrop implementation and `owlink-git` builds `owl`, the AWDL userspace
 daemon (`sudo owl -i <iface>`). Apple devices must set AirDrop to "Everyone".
-AirDrop peers come from `opendrop find` (best-effort, timeout-guarded);
-sending is `opendrop send -r <id> -f <file>`.
+`opendrop find` logs `Found  index N  ID <id>  name <n>` to stderr until
+interrupted (opendrop/cli.py `_send_discover`); discovery parses those lines
+under a timeout — the ID becomes `airdrop:<ID>` and the name the label.
+Sending is `opendrop send -r <id> -f <file>`.
 
 ### "omdrop"
 

@@ -77,6 +77,42 @@ rc=0
 "$BIN" send banana:xyz "$testfile" >/dev/null 2>&1 || rc=$?
 ok "send unknown target prefix exits non-zero" test "$rc" -ne 0
 
+# Protocol fallback: localsend help lacks --to, so send speaks HTTP via curl.
+rm -f "$DELIGHT_STUB_STATE/localsend-to"
+: >"$DELIGHT_STUB_LOG"
+ok "protocol fallback send exits 0" "$BIN" send localsend:192.168.1.20 "$testfile"
+ok "prepare-upload sent info and file metadata" \
+  grep -q "prepare-upload" "$DELIGHT_STUB_LOG" -a \
+  && grep -Eq 'curl .*-d .*"info".*"files".*"f0".*photo\.jpg' "$DELIGHT_STUB_LOG"
+ok "upload used sessionId/fileId/token" \
+  grep -q "upload?sessionId=s1&fileId=f0&token=tok" "$DELIGHT_STUB_LOG"
+
+echo 403 >"$DELIGHT_STUB_STATE/curl-code"
+: >"$DELIGHT_STUB_LOG"
+rc=0
+"$BIN" send localsend:192.168.1.20 "$testfile" >/dev/null 2>&1 || rc=$?
+is "403 from prepare-upload exits 1" "$rc" "1"
+ok "403 sends Send failed notification" grep -q "Send failed" "$DELIGHT_STUB_LOG"
+rm -f "$DELIGHT_STUB_STATE/curl-code"
+
+# --- AirDrop targets --------------------------------------------------------
+
+touch "$DELIGHT_STUB_STATE/iw-monitor"
+"$DELIGHT_TEST_REPO/bin/delight" config set share.airdrop true >/dev/null
+cat >"$DELIGHT_STUB_STATE/opendrop-peers" <<'EOF'
+Looking for receivers. Press Ctrl+C to stop ...
+Found  index 0  ID a1b2c3d4e5f6  name Apple iPhone
+Found  index 1  ID 001122334455  name Tim's MacBook
+EOF
+rm -f "$XDG_RUNTIME_DIR/omarchy-delight/share/peers.json" # drop cached []
+out=$("$BIN" share-targets --json)
+ok "airdrop targets validate against schema" schema_valid "$SCHEMA/share-target.schema.json" <(printf '%s' "$out")
+is "two airdrop targets" "$(jq 'map(select(.id | startswith("airdrop:"))) | length' <<<"$out")" "2"
+is "airdrop id uses opendrop ID" "$(jq -r 'map(.id) | index("airdrop:a1b2c3d4e5f6") != null' <<<"$out")" "true"
+is "airdrop label uses name" "$(jq -r '.[] | select(.id == "airdrop:a1b2c3d4e5f6") | .label' <<<"$out")" "Apple iPhone"
+"$DELIGHT_TEST_REPO/bin/delight" config set share.airdrop false >/dev/null
+rm -f "$DELIGHT_STUB_STATE/iw-monitor" "$DELIGHT_STUB_STATE/opendrop-peers"
+
 # --- sheet ------------------------------------------------------------------
 
 : >"$DELIGHT_STUB_LOG"
@@ -85,9 +121,16 @@ ok "sheet ran omarchy-shell summon delight.share" grep -q "omarchy-shell shell s
 ok "sheet payload carries the file path" grep -q "$testfile" "$DELIGHT_STUB_LOG"
 
 echo clip-bytes >"$DELIGHT_STUB_STATE/clipboard"
+echo "image/png" >"$DELIGHT_STUB_STATE/clipboard-type"
 : >"$DELIGHT_STUB_LOG"
 ok "sheet --clipboard summons the panel" "$BIN" sheet --clipboard
 ok "clipboard summon happened" grep -q "omarchy-shell shell summon delight.share" "$DELIGHT_STUB_LOG"
+ok "clipboard file gets .png extension" grep -q 'clipboard-[0-9]*\.png' "$DELIGHT_STUB_LOG"
+rm -f "$DELIGHT_STUB_STATE/clipboard-type"
+
+rc=0
+"$BIN" sheet "$SANDBOX/does-not-exist.jpg" >/dev/null 2>&1 || rc=$?
+is "sheet rejects a nonexistent path" "$rc" "64"
 
 # --- install / nautilus extension -------------------------------------------
 
@@ -113,14 +156,22 @@ cat >"$prefs" <<'EOF'
 ]}
 EOF
 
+# First pass seeds the seen file: no notifications for historic entries.
 : >"$DELIGHT_STUB_LOG"
 ok "watch-receive --once exits 0" "$BIN" watch-receive --once --prefs "$prefs"
-ok "notify for received file" grep -q "omarchy-notification-send.*Received note.txt" "$DELIGHT_STUB_LOG"
-ok "file notify offers reveal exec" grep -q "exec nautilus --select" "$DELIGHT_STUB_LOG"
-ok "message notify" grep -q "Message from Desk" "$DELIGHT_STUB_LOG"
+not_ok "first --once seeds without notifying" grep -q "omarchy-notification-send" "$DELIGHT_STUB_LOG"
+
+# A genuinely new entry notifies once, with a reveal action.
+jq '.["flutter.ls_receive_history"] += ["{\"id\":\"r3\",\"fileName\":\"pic.png\",\"fileType\":\"image/png\",\"path\":\"/home/u/Pictures/pic.png\",\"isMessage\":false,\"fileSize\":99,\"senderAlias\":\"Pixel 8\",\"timestamp\":\"2026-10-12T00:00:02Z\"}"]' \
+  "$prefs" >"$prefs.new" && mv "$prefs.new" "$prefs"
+: >"$DELIGHT_STUB_LOG"
+ok "watch-receive --once again exits 0" "$BIN" watch-receive --once --prefs "$prefs"
+is "exactly one new notification" "$(grep -c omarchy-notification-send "$DELIGHT_STUB_LOG")" "1"
+ok "file notify offers reveal exec" grep -q "exec nautilus --select /home/u/Pictures/pic.png" "$DELIGHT_STUB_LOG"
+ok "new-entry notify names the file" grep -q "Received pic.png" "$DELIGHT_STUB_LOG"
 
 : >"$DELIGHT_STUB_LOG"
 "$BIN" watch-receive --once --prefs "$prefs" >/dev/null 2>&1
-not_ok "second --once notifies nothing new" grep -q "omarchy-notification-send" "$DELIGHT_STUB_LOG"
+not_ok "third --once notifies nothing" grep -q "omarchy-notification-send" "$DELIGHT_STUB_LOG"
 
 done_testing

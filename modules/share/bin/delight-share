@@ -62,44 +62,58 @@ share_discover() {
   tmp=$(mktemp -d)
 
   if delight_has_cmd ip && delight_has_cmd curl; then
+    # Only RFC1918 addresses on real interfaces; skip bridges/virtual links.
     while IFS='|' read -r iif addr _; do
-      [[ -n $addr && $addr != 127.* ]] || continue
-      # Scan the /24 of every non-loopback address (prefixlen information is
-      # advisory; LocalSend itself sweeps the subnet).
+      [[ -n $addr ]] || continue
+      [[ $iif =~ ^(docker|br-|veth|virbr|tailscale|wg|lo) ]] && continue
+      [[ $addr =~ ^10\. ]] || [[ $addr =~ ^192\.168\. ]] || [[ $addr =~ ^172\.(1[6-9]|2[0-9]|3[01])\. ]] || continue
       base=${addr%.*}
-      printf '%s|%s\n' "$iif" "$base" >>"$tmp/nets"
       for ((n = 1; n < 255; n++)); do
-        [[ $base.$n == "$addr" ]] && continue
+        [[ $addr == "$base.$n" ]] && continue
         printf '%s\n' "$base.$n" >>"$tmp/hosts"
       done
     done < <(ip -j -4 addr show up 2>/dev/null | jq -r '.[] | .ifname as $i | .addr_info[]? | select(.family=="inet") | "\($i)|\(.local)|\(.prefixlen)"')
 
     if [[ -s $tmp/hosts ]]; then
-      sort -u "$tmp/hosts" | xargs -P 64 -I{} bash -c '
-        ip="$1"; out="$2"; self="$3"; t="$4"
-        for scheme in https http; do
-          extra=()
-          [[ $scheme == https ]] && extra=(-k)
-          reply=$(curl -sS "${extra[@]}" --max-time "$t" -H "Content-Type: application/json" \
-            -d "$self" "$scheme://$ip:53317/api/localsend/v2/register" 2>/dev/null) \
-            || reply=$(curl -sS "${extra[@]}" --max-time "$t" "$scheme://$ip:53317/api/localsend/v2/info" 2>/dev/null) \
-            || continue
-          if jq -e "type == \"object\" and (.alias // \"\") != \"\"" <<<"$reply" >/dev/null 2>&1; then
-            jq -c --arg ip "$ip" --arg proto "$scheme" ". + {ip:\$ip, protocol:\$proto}" <<<"$reply" >"$out/$scheme-$ip.json"
-            exit 0
-          fi
-        done
-      ' _ {} "$tmp" "$(share_self_info)" "$timeout" 2>/dev/null || true
+      # One https POST /register per host. curl 7 (refused) or 28 (timeout)
+      # means nothing listens — the port is dead, so http/info fallback only
+      # runs when something answered but TLS/JSON failed. -P 128 keeps the
+      # whole sweep within ~discoveryTimeout+1s.
+      sort -u "$tmp/hosts" | xargs -P 128 -I{} bash -c '
+        ip="$1"; out="$2"; self="$3"; t="$4"; ownfp="$5"; reply=""; rc=0
+        reply=$(curl -sS -k --connect-timeout 0.5 --max-time "$t" -H "Content-Type: application/json" \
+          -d "$self" "https://$ip:53317/api/localsend/v2/register" 2>/dev/null) || rc=$?
+        if ! jq -e "type == \"object\" and (.alias // \"\") != \"\"" <<<"$reply" >/dev/null 2>&1; then
+          ((rc == 7 || rc == 28)) && exit 0
+          reply=$(curl -sS --connect-timeout 0.5 --max-time "$t" -H "Content-Type: application/json" \
+            -d "$self" "http://$ip:53317/api/localsend/v2/register" 2>/dev/null) || true
+        fi
+        if ! jq -e "type == \"object\" and (.alias // \"\") != \"\"" <<<"$reply" >/dev/null 2>&1; then
+          for scheme in https http; do
+            extra=()
+            [[ $scheme == https ]] && extra=(-k)
+            reply=$(curl -sS "${extra[@]}" --connect-timeout 0.5 --max-time "$t" \
+              "$scheme://$ip:53317/api/localsend/v2/info" 2>/dev/null) || reply=""
+            jq -e "type == \"object\" and (.alias // \"\") != \"\"" <<<"$reply" >/dev/null 2>&1 && break
+          done
+        fi
+        jq -e "type == \"object\" and (.alias // \"\") != \"\"" <<<"$reply" >/dev/null 2>&1 || exit 0
+        jq -c --arg ip "$ip" --arg proto "$scheme" --arg fp "$ownfp" \
+          "select((.fingerprint // \"\") != \$fp) + {ip:\$ip, protocol:\$proto}" <<<"$reply" \
+          >"$out/peer-$ip.json"
+      ' _ {} "$tmp" "$(share_self_info)" "$timeout" "$(share_fingerprint)" 2>/dev/null || true
     fi
   fi
 
-  # AirDrop peers via opendrop, best effort.
+  # AirDrop peers via opendrop. `find` logs 'Found  index N  ID <id>  name <n>'
+  # to stderr and runs until killed; a short timeout bounds it.
   if share_airdrop && delight_has_cmd opendrop; then
-    timeout "$((timeout + 3))" opendrop find >"$tmp/opendrop.txt" 2>/dev/null || true
+    timeout "$((timeout + 1))" opendrop find >"$tmp/opendrop.txt" 2>&1 || true
     if [[ -s $tmp/opendrop.txt ]]; then
       while IFS= read -r line; do
-        [[ $line =~ name:\ *([^,]+) ]] || continue
-        jq -cn --arg id "${BASH_REMATCH[1]}" '{airdropId:$id}' >"$tmp/airdrop-${BASH_REMATCH[1]// /_}.json"
+        [[ $line =~ Found[[:space:]]+index[[:space:]]+[0-9]+[[:space:]]+ID[[:space:]]+([^[:space:]]+)[[:space:]]+name[[:space:]]+(.+) ]] || continue
+        jq -cn --arg id "${BASH_REMATCH[1]}" --arg n "${BASH_REMATCH[2]% }" \
+          '{airdropId:$id, name:$n}' >"$tmp/airdrop-${BASH_REMATCH[1]}.json"
       done <"$tmp/opendrop.txt"
     fi
   fi
@@ -139,7 +153,7 @@ module_share-targets() {
   # the phone/laptop/desktop vocabulary the share sheet draws.
   jq -c '[.[] | select(type == "object") |
     (if .airdropId then
-      {id: ("airdrop:" + (.airdropId | tostring)), label: (.airdropId | tostring), icon: "", kind: "phone"}
+      {id: ("airdrop:" + (.airdropId | tostring)), label: ((.name // .airdropId) | tostring), icon: "", kind: "phone"}
     else
       {id: ("localsend:" + ((.fingerprint // .ip // "unknown") | tostring)),
        label: ((.alias // .ip // "Unknown") | tostring),
@@ -243,36 +257,50 @@ module_doctor() {
 
 # --- send -------------------------------------------------------------------
 
-# 0 when a localsend CLI with a --to flag is available.
-share_send_supports_to() {
-  local cmd
+# Probe once which localsend invocation supports --to. A GUI-only localsend
+# binary ignores --help and would launch the app, so every probe is wrapped in
+# `timeout 3`. Result cached in SHARE_SEND_CMD / SHARE_SEND_HEADLESS.
+SHARE_SEND_CMD=""
+SHARE_SEND_HEADLESS=""
+SHARE_SEND_PROBED=false
+
+share_send_probe() {
+  [[ $SHARE_SEND_PROBED == true ]] && return 0
+  SHARE_SEND_PROBED=true
+  local cmd help
   for cmd in localsend localsend-cli; do
     delight_has_cmd "$cmd" || continue
-    if "$cmd" --headless send --help 2>&1 | grep -q -- '--to'; then
+    help=$(timeout 3 "$cmd" --headless send --help 2>&1 || true)
+    if grep -q -- '--to' <<<"$help"; then
+      SHARE_SEND_CMD="$cmd"
+      SHARE_SEND_HEADLESS=true
       return 0
     fi
-    if "$cmd" send --help 2>&1 | grep -q -- '--to'; then
+    help=$(timeout 3 "$cmd" send --help 2>&1 || true)
+    if grep -q -- '--to' <<<"$help"; then
+      SHARE_SEND_CMD="$cmd"
+      SHARE_SEND_HEADLESS=false
       return 0
     fi
   done
+  SHARE_SEND_CMD=""
   return 1
 }
 
+share_send_supports_to() {
+  share_send_probe
+  [[ -n $SHARE_SEND_CMD ]]
+}
+
 share_send_cli() {
-  local ip="$1" cmd
+  local ip="$1"
   shift
-  for cmd in localsend localsend-cli; do
-    delight_has_cmd "$cmd" || continue
-    if "$cmd" --headless send --help 2>&1 | grep -q -- '--to'; then
-      "$cmd" --headless send --to "$ip" "$@"
-      return $?
-    fi
-    if "$cmd" send --help 2>&1 | grep -q -- '--to'; then
-      "$cmd" send --to "$ip" "$@"
-      return $?
-    fi
-  done
-  return 127
+  [[ -n $SHARE_SEND_CMD ]] || return 127
+  if [[ $SHARE_SEND_HEADLESS == true ]]; then
+    "$SHARE_SEND_CMD" --headless send --to "$ip" "$@"
+  else
+    "$SHARE_SEND_CMD" send --to "$ip" "$@"
+  fi
 }
 
 share_mime() {
@@ -290,7 +318,6 @@ share_send_protocol() {
   base="$proto://$ip:$SHARE_LOCALSEND_PORT/api/localsend/v2"
   tmp=$(mktemp -d)
 
-  body=$(jq -cn --argjson info "$(share_self_info)" '{$info=$info} | {info:$info, files:{}}')
   local files_json='{}' i=0
   for file in "${files[@]}"; do
     name=$(basename -- "$file")
@@ -424,8 +451,15 @@ module_sheet() {
   share_dir
   if [[ $clipboard == true ]]; then
     delight_has_cmd wl-paste || delight_die "sheet: --clipboard needs wl-paste" 1
-    local clip
-    clip="$SHARE_RUN_DIR/clipboard-$(date +%s).bin"
+    local clip ext types
+    types=$(wl-paste --list-types 2>/dev/null || true)
+    case "$(head -1 <<<"$types")" in
+      text/* | TEXT | STRING | UTF8_STRING) ext=txt ;;
+      image/png) ext=png ;;
+      image/jpeg) ext=jpg ;;
+      *) ext=bin ;;
+    esac
+    clip="$SHARE_RUN_DIR/clipboard-$(date +%s).$ext"
     wl-paste -n >"$clip"
     [[ -s $clip ]] || delight_die "sheet: clipboard is empty" 1
     paths+=("$clip")
@@ -446,12 +480,14 @@ module_sheet() {
   local abs=() p
   for p in "${paths[@]}"; do
     [[ $p == /* ]] || p=$(readlink -f -- "$p")
+    [[ -f $p || -d $p ]] || delight_die "sheet: no such file '$p'" 64
     abs+=("$p")
   done
 
-  local payload
-  payload=$(jq -cn --argjson paths "$(printf '%s\n' "${abs[@]}" | jq -Rsc 'split("\n") | map(select(length > 0))')" \
-    '{paths:$paths, targetsCommand:["delight","share","share-targets","--json"]}')
+  local bin="$DELIGHT_ROOT/bin/delight" payload
+  payload=$(jq -cn --arg bin "$bin" \
+    --argjson paths "$(printf '%s\n' "${abs[@]}" | jq -Rsc 'split("\n") | map(select(length > 0))')" \
+    '{paths:$paths, delightBin:$bin, targetsCommand:[$bin,"share-targets","--json"]}')
   "$DELIGHT_ROOT/bin/delight" ui summon delight.share "$payload"
 }
 
@@ -478,7 +514,12 @@ share_receive_new() {
   local prefs="$1" entry id name sender path ismsg
   [[ -f $prefs ]] || return 0
   share_dir
-  touch -- "$SHARE_SEEN_FILE"
+  # The seen file lives in the runtime dir; after a reboot it is gone, so the
+  # first pass seeds it with every historic id WITHOUT notifying.
+  if [[ ! -f $SHARE_SEEN_FILE ]]; then
+    jq -r '."flutter.ls_receive_history" // [] | .[] | fromjson? // . | .id // empty' "$prefs" 2>/dev/null \
+      | sort -u >"$SHARE_SEEN_FILE"
+  fi
   while IFS= read -r entry; do
     [[ -n $entry ]] || continue
     id=$(jq -r '.id // empty' <<<"$entry")
@@ -525,11 +566,17 @@ module_watch-receive() {
     exec sleep infinity
   }
 
-  if ! pgrep -x localsend >/dev/null 2>&1; then
-    if delight_has_cmd localsend; then
-      setsid localsend --hidden >/dev/null 2>&1 &
+  # Upstream's binary is localsend_app; distro/launcher names may differ.
+  if ! pgrep -x localsend >/dev/null 2>&1 && ! pgrep -x localsend_app >/dev/null 2>&1; then
+    # Spawn the app outside this unit's cgroup/process tree: stopping the
+    # receive watcher must not kill the user's LocalSend, and this service may
+    # lack the Wayland environment the GUI needs.
+    if delight_has_cmd uwsm-app; then
+      delight_run uwsm-app -- localsend --hidden >/dev/null 2>&1 || true
+    elif delight_has_cmd systemd-run; then
+      delight_run systemd-run --user --quiet --collect localsend --hidden || true
     else
-      delight_warn "share: localsend not installed; receive notifications need the app"
+      delight_warn "share: localsend not running and no launcher to start it"
     fi
   fi
 

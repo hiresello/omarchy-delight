@@ -17,6 +17,7 @@ Item {
   property var manifest: null
   property bool opened: false
   property var paths: []
+  property string delightBin: "delight"
   property var targetsCommand: []
   property var targets: []
   property bool loading: false
@@ -28,12 +29,14 @@ Item {
     try {
       const payload = JSON.parse(payloadJson || "{}")
       root.paths = Array.isArray(payload.paths) ? payload.paths : []
+      if (typeof payload.delightBin === "string" && payload.delightBin.length > 0)
+        root.delightBin = payload.delightBin
       root.targetsCommand = Array.isArray(payload.targetsCommand) && payload.targetsCommand.length > 0
         ? payload.targetsCommand
-        : ["delight", "share", "share-targets", "--json"]
+        : [root.delightBin, "share-targets", "--json"]
     } catch (e) {
       root.paths = []
-      root.targetsCommand = ["delight", "share", "share-targets", "--json"]
+      root.targetsCommand = [root.delightBin, "share-targets", "--json"]
     }
     root.opened = true
     root.refresh()
@@ -82,7 +85,8 @@ Item {
   }
 
   function send(target) {
-    const argv = ["delight", "share", "send", target.id].concat(root.paths)
+    const module = (typeof target.module === "string" && target.module.length > 0) ? target.module : "share"
+    const argv = [root.delightBin, module, "send", target.id].concat(root.paths)
     Quickshell.execDetached(argv)
     root.dismiss()
   }
@@ -275,17 +279,31 @@ Item {
                 }
               }
 
-              Text {
+              Column {
                 anchors.left: badge.right
                 anchors.leftMargin: Tokens.spacing
                 anchors.right: parent.right
                 anchors.rightMargin: Tokens.spacing
                 anchors.verticalCenter: parent.verticalCenter
-                text: target.modelData.label
-                elide: Text.ElideRight
-                color: Tokens.foreground
-                font.family: Tokens.fontFamily
-                font.pixelSize: Tokens.fontSize
+                spacing: 1
+
+                Text {
+                  width: parent.width
+                  text: target.modelData.label
+                  elide: Text.ElideRight
+                  color: Tokens.foreground
+                  font.family: Tokens.fontFamily
+                  font.pixelSize: Tokens.fontSize
+                }
+                Text {
+                  width: parent.width
+                  visible: typeof target.modelData.module === "string" && target.modelData.module !== "share"
+                  text: target.modelData.module || ""
+                  elide: Text.ElideRight
+                  color: Tokens.muted
+                  font.family: Tokens.fontFamily
+                  font.pixelSize: Tokens.fontSizeSmall
+                }
               }
 
               MouseArea {
