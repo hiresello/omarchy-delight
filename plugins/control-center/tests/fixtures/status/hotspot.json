@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "id": "hotspot",
+  "state": "needs-setup",
+  "title": "Instant Hotspot",
+  "subtitle": "",
+  "icon": "󰀃",
+  "toggle": true,
+  "actions": [],
+  "devices": [],
+  "reason": "Pair a phone to share its connection",
+  "updated": "2026-10-12T09:00:00Z"
+}

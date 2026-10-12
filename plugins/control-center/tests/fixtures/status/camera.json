@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "id": "camera",
+  "state": "error",
+  "title": "Continuity Camera",
+  "subtitle": "",
+  "icon": "󰄀",
+  "toggle": false,
+  "actions": [],
+  "devices": [],
+  "reason": "v4l2loopback failed to load",
+  "updated": "2026-10-12T09:00:00Z"
+}

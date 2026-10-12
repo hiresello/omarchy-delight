@@ -2,3 +2,15 @@ module Delight
 singleton Tokens 1.0 Tokens.qml
 Tile 1.0 Tile.qml
 Sheet 1.0 Sheet.qml
+SheetWindow 1.0 SheetWindow.qml
+ListRow 1.0 ListRow.qml
+DeviceRow 1.0 DeviceRow.qml
+TargetGrid 1.0 TargetGrid.qml
+QrView 1.0 QrView.qml
+ProgressRing 1.0 ProgressRing.qml
+Spinner 1.0 Spinner.qml
+Toast 1.0 Toast.qml
+Button 1.0 Button.qml
+Toggle 1.0 Toggle.qml
+Glyph 1.0 Glyph.qml
+FocusRing 1.0 FocusRing.qml

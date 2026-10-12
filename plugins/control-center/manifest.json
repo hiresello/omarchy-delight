@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "id": "delight.control-center",
   "name": "Delight Control Center",
-  "version": "0.1.0",
-  "description": "One tile per Omarchy Delight module.",
+  "version": "0.2.0",
+  "description": "macOS-style Control Center for Omarchy Delight: one tile per installed feature, live from its status.",
   "kinds": [
     "bar-widget",
     "panel"
@@ -11,5 +11,6 @@
   "entryPoints": {
     "barWidget": "BarWidget.qml",
     "panel": "ControlCenterPanel.qml"
-  }
+  },
+  "keepLoaded": true
 }

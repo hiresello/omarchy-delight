@@ -1,89 +1,61 @@
-pragma ComponentBehavior: Bound
-
 import QtQuick
 import Quickshell
-import Quickshell.Io
+import Quickshell.Hyprland
 import Quickshell.Wayland
+import qs.Commons
 import "Delight"
 
-// Control Center: one tile per $XDG_RUNTIME_DIR/omarchy-delight/status/*.json.
-// Clicking a tile runs `delight <id> toggle`; the chevron runs the status's
-// first action, or `delight <id> open`.
+// Control Center panel: a layer-shell card under the bar, top-right, hosting
+// ControlCenterView. Kept loaded so opening is a visibility flip, not a load.
 Item {
   id: root
 
   property var shell: null
   property var manifest: null
-  property var modules: []
   property bool opened: false
-
-  readonly property string statusDir: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/omarchy-delight/status"
+  readonly property string pluginId: "delight.control-center"
+  property alias store: statusStore
+  property alias actions: commands
+  property alias view: content
 
   function open(payloadJson) {
+    let payload = {}
+    try { payload = JSON.parse(payloadJson || "{}") || {} } catch (e) { payload = {} }
+    content.showInstall = payload.view === "install"
     opened = true
-    refresh()
+    statusStore.refresh()
+    catalog.refresh()
+    Qt.callLater(function() { content.focusFirst() })
   }
 
   function close() {
     opened = false
+    content.showInstall = false
+    content.toast.hide()
   }
 
   function requestClose() {
-    if (shell && typeof shell.hide === "function") shell.hide("delight.control-center")
+    if (shell && typeof shell.hide === "function") shell.hide(pluginId)
     else close()
   }
 
-  function refresh() {
-    if (!reader.running) reader.running = true
+  StatusStore { id: statusStore }
+
+  Catalog {
+    id: catalog
+    active: root.opened
   }
 
-  function parse(text) {
-    let list = []
-    try {
-      const parsed = JSON.parse(text || "[]")
-      if (Array.isArray(parsed)) list = parsed.filter(function(s) { return s && typeof s.id === "string" })
-    } catch (e) {
-      console.warn("delight.control-center: bad status JSON", e)
-    }
-    list.sort(function(a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0 })
-    modules = list
-  }
-
-  function run(command) {
-    Quickshell.execDetached(command)
-    refreshSoon.restart()
-  }
-
-  function toggle(status) {
-    run(["delight", status.id, "toggle"])
-  }
-
-  function detail(status) {
-    const actions = status.actions || []
-    if (actions.length > 0 && Array.isArray(actions[0].command)) run(actions[0].command)
-    else run(["delight", status.id, "open"])
-  }
-
-  Process {
-    id: reader
-    command: ["sh", "-c", "cat -- \"$1\"/*.json 2>/dev/null | jq -cs . 2>/dev/null || echo []", "sh", root.statusDir]
-    stdout: StdioCollector {
-      onStreamFinished: root.parse(this.text)
-    }
-  }
-
-  // Fallback polling; modules also rewrite their status file on every change.
-  Timer {
-    interval: 2000
-    repeat: true
-    running: root.opened
-    onTriggered: root.refresh()
+  Actions {
+    id: commands
+    // Status files land within a few ms of a toggle; poll once in case not.
+    onRan: refreshSoon.restart()
   }
 
   Timer {
     id: refreshSoon
-    interval: 300
-    onTriggered: root.refresh()
+    interval: 600
+    onTriggered: statusStore.refresh()
   }
 
   // qmllint's Quickshell type info marks PanelWindow uncreatable; the shell creates it fine.
@@ -92,62 +64,50 @@ Item {
     id: window
     visible: root.opened
     color: "transparent"
-    exclusionMode: ExclusionMode.Ignore
+    anchors { top: true; right: true }
+    margins { top: Style.space(6); right: Style.space(8) }
+    exclusionMode: ExclusionMode.Normal
+    implicitWidth: content.implicitWidth + Tokens.paddingLarge * 2
+    implicitHeight: content.implicitHeight + Tokens.paddingLarge * 2
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
     WlrLayershell.namespace: "delight-control-center"
+    WlrLayershell.keyboardFocus: root.opened ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
-    anchors {
-      top: true
-      right: true
-    }
-    margins {
-      top: 8
-      right: 8
+    HyprlandFocusGrab {
+      active: root.opened
+      windows: [window]
+      onCleared: root.requestClose()
     }
 
-    implicitWidth: sheet.implicitWidth
-    implicitHeight: sheet.implicitHeight
-
-    Sheet {
-      id: sheet
-      anchors.fill: parent
-      title: "Control Center"
+    ControlCenterView {
+      id: content
+      x: Tokens.paddingLarge
+      y: Tokens.paddingLarge
+      width: Tokens.sheetWidth
+      height: implicitHeight
       focus: true
-      Keys.onEscapePressed: root.requestClose()
-
-      Text {
-        visible: root.modules.length === 0
-        text: "No Delight modules installed yet."
-        color: Tokens.muted
-        font.family: Tokens.fontFamily
-        font.pixelSize: Tokens.fontSize
+      toggles: statusStore.toggles
+      rows: statusStore.rows
+      devices: catalog.devices
+      available: catalog.available
+      opacity: root.opened ? 1 : 0
+      transform: Translate { y: root.opened ? 0 : -Tokens.spacing }
+      onToggleRequested: status => commands.toggle(status)
+      onDetailRequested: status => {
+        commands.detail(status)
+        root.requestClose()
       }
-
-      Grid {
-        columns: 2
-        spacing: Tokens.spacing
-        visible: root.modules.length > 0
-
-        Repeater {
-          model: root.modules
-
-          Tile {
-            required property var modelData
-            width: (sheet.width - Tokens.padding * 2 - Tokens.spacing) / 2
-            icon: modelData.icon || ""
-            title: modelData.title || modelData.id
-            subtitle: modelData.state === "unsupported" || modelData.state === "error"
-              ? (modelData.reason || modelData.subtitle || "")
-              : (modelData.subtitle || "")
-            status: modelData.state || "off"
-            toggleable: modelData.toggle !== false
-            hasDetail: true
-            onToggled: root.toggle(modelData)
-            onDetailRequested: root.detail(modelData)
-          }
-        }
+      onDeviceActivated: device => {
+        commands.openDevice(device)
+        root.requestClose()
       }
+      onInstallRequested: id => {
+        commands.install(id)
+        root.requestClose()
+      }
+      onCloseRequested: root.requestClose()
+
+      Behavior on opacity { NumberAnimation { duration: Tokens.animationFast; easing.type: Tokens.easing } }
     }
   }
 }
