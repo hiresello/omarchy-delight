@@ -136,7 +136,7 @@ Source `lib/delight/delight.sh`. Every side-effecting helper prints
 
 ## User files Delight touches
 
-All generated from the installed modules by `delight sync` (run by
+All generated from the installed modules by `delight refresh` (run by
 `install.sh` and every module `install`/`uninstall`):
 
 - `~/.config/hypr/hyprland.lua` — a marked block with one line,
