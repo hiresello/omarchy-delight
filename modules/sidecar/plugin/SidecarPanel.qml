@@ -72,13 +72,13 @@ Item {
 
     property string label: ""
     property bool selected: false
-    property bool enabled: true
+    property bool usable: true
     signal clicked()
 
     implicitWidth: chipText.implicitWidth + Tokens.padding * 2
     implicitHeight: chipText.implicitHeight + Tokens.spacing * 2
     radius: Tokens.radiusSmall
-    opacity: enabled ? 1 : 0.5
+    opacity: usable ? 1 : 0.5
     color: selected ? Tokens.accent : (chipArea.containsMouse ? Tokens.surfaceRaised : Tokens.surface)
     border.color: Tokens.border
     border.width: 1
@@ -98,7 +98,7 @@ Item {
       id: chipArea
       anchors.fill: parent
       hoverEnabled: true
-      enabled: chip.enabled
+      enabled: chip.usable
       cursorShape: Qt.PointingHandCursor
       onClicked: chip.clicked()
     }
@@ -190,7 +190,7 @@ Item {
         Chip {
           label: root.active ? "Stop tablet display" : "Start tablet display"
           selected: root.active
-          enabled: !root.busy
+          usable: !root.busy
           onClicked: root.run([root.active ? "stop" : "start"], root.active ? "Stopping…" : "Starting…")
         }
 
@@ -219,7 +219,7 @@ Item {
             required property string modelData
             label: modelData
             selected: root.config.arrangement === modelData
-            enabled: !root.busy
+            usable: !root.busy
             onClicked: root.run(["set", "arrangement", modelData], "")
           }
         }
@@ -238,14 +238,14 @@ Item {
             required property var modelData
             label: modelData.label
             selected: root.config.preset === modelData.id
-            enabled: !root.busy
+            usable: !root.busy
             onClicked: root.run(["set", "preset", modelData.id], "")
           }
         }
 
         Chip {
           label: root.config.orientation === "portrait" ? "Portrait" : "Landscape"
-          enabled: !root.busy
+          usable: !root.busy
           onClicked: root.run(["set", "orientation", root.config.orientation === "portrait" ? "landscape" : "portrait"], "")
         }
       }
@@ -318,7 +318,7 @@ Item {
         Chip {
           anchors.verticalCenter: parent.verticalCenter
           label: "Pair"
-          enabled: !root.busy && root.info.credentials === true
+          usable: !root.busy && root.info.credentials === true
           onClicked: root.submitPin()
         }
       }
@@ -336,7 +336,7 @@ Item {
       }
 
       Image {
-        visible: root.viewOnly && source != ""
+        visible: root.viewOnly && source !== ""
         width: 112
         height: 112
         smooth: false
