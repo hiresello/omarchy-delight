@@ -16,10 +16,16 @@ BarWidget {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
+  // QsWindow.window is typed QObject; it is the bar's PanelWindow at runtime.
+  // qmllint disable missing-property
   function togglePanel() {
-    if (shell && typeof shell.toggle === "function") shell.toggle("delight.control-center", "{}")
-    else Quickshell.execDetached(["omarchy-shell", "shell", "toggle", "delight.control-center", "{}"])
+    let win = button.QsWindow.window
+    let at = win ? button.mapToItem(win.contentItem, button.width / 2, 0) : null
+    let payload = JSON.stringify(at && win ? { anchorX: Math.round(at.x), barWidth: Math.round(win.width) } : {})
+    if (shell && typeof shell.toggle === "function") shell.toggle("delight.control-center", payload)
+    else Quickshell.execDetached(["omarchy-shell", "shell", "toggle", "delight.control-center", payload])
   }
+  // qmllint enable missing-property
 
   StatusStore {
     id: statusStore

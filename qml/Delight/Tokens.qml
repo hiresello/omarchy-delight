@@ -174,9 +174,12 @@ QtObject {
   readonly property int controlHeight: Style.space(28)
   // Room around a floating card for its baked shadow (shadow.png).
   readonly property int shadowMargin: Style.space(28)
+  // Distance from a floating card to the bar and screen edge, matching window gaps.
+  readonly property int edgeGap: Style.gapsOut * 2
 
   // ---- motion (0 when Hyprland animations are off / reduce-motion)
-  readonly property bool reduceMotion: Style.reduceMotion
+  // Older Omarchy builds have no Style.reduceMotion; treat that as motion on.
+  readonly property bool reduceMotion: Style.reduceMotion === true
   readonly property int animationFast: duration(120)
   readonly property int animationNormal: duration(180)
   readonly property int animationSlow: duration(280)

@@ -160,7 +160,7 @@ Item {
     id: window
     visible: root.opened
     color: "transparent"
-    exclusionMode: ExclusionMode.Ignore
+    exclusionMode: ExclusionMode.Normal
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
     WlrLayershell.namespace: "delight-phone"
@@ -169,17 +169,23 @@ Item {
       top: true
       right: true
     }
+    // The sheet sits edgeGap from the bar and screen edge; the surface adds
+    // shadowMargin for the baked shadow, except past the screen edge.
     margins {
-      top: 8
-      right: 8
+      top: Tokens.edgeGap - Tokens.shadowMargin
+      right: 0
     }
 
-    implicitWidth: 420
-    implicitHeight: Math.min(content.implicitHeight + Tokens.padding * 2, 680)
+    implicitWidth: Tokens.space(420) + Tokens.shadowMargin + Tokens.edgeGap
+    implicitHeight: Math.min(sheet.implicitHeight, Tokens.space(680)) + Tokens.shadowMargin * 2
 
     Sheet {
       id: sheet
       anchors.fill: parent
+      anchors.leftMargin: Tokens.shadowMargin
+      anchors.rightMargin: Tokens.edgeGap
+      anchors.topMargin: Tokens.shadowMargin
+      anchors.bottomMargin: Tokens.shadowMargin
       title: root.selectedThread !== "" ? "Messages" : (root.view === "pair" ? "Pair a phone" : (root.view === "sms" ? "Messages" : "Phone"))
       focus: true
       Keys.onEscapePressed: {

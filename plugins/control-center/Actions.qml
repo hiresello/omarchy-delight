@@ -28,11 +28,16 @@ QtObject {
     run(delightCommand.concat([status.id, "toggle"]))
   }
 
-  // "…": the module's first action, else `delight <id> open`.
+  // Details: a module needing setup runs its setup-like action ("Set up…",
+  // "Fix", "Pair", "Settings"); otherwise its first action; else `delight <id> open`.
   function detail(status) {
-    let actions = status.actions || []
-    let first = actions.length > 0 && actions[0] ? toList(actions[0].command) : []
-    if (first.length > 0) run(first)
+    let actions = Array.prototype.slice.call(status.actions || []).filter(a => a && toList(a.command).length > 0)
+    let chosen = actions.length > 0 ? actions[0] : null
+    if (status.state === "needs-setup" || status.state === "error") {
+      let setup = actions.find(a => /^(set ?up|fix|pair|settings)/i.test(String(a.label || "")))
+      if (setup) chosen = setup
+    }
+    if (chosen) run(toList(chosen.command))
     else run(delightCommand.concat([status.id, "open"]))
   }
 

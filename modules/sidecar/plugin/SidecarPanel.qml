@@ -159,7 +159,7 @@ Item {
     id: window
     visible: root.opened
     color: "transparent"
-    exclusionMode: ExclusionMode.Ignore
+    exclusionMode: ExclusionMode.Normal
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
     WlrLayershell.namespace: "delight-sidecar"
@@ -168,17 +168,23 @@ Item {
       top: true
       right: true
     }
+    // The sheet sits edgeGap from the bar and screen edge; the surface adds
+    // shadowMargin for the baked shadow, except past the screen edge.
     margins {
-      top: 8
-      right: 8
+      top: Tokens.edgeGap - Tokens.shadowMargin
+      right: 0
     }
 
-    implicitWidth: sheet.implicitWidth
-    implicitHeight: sheet.implicitHeight
+    implicitWidth: sheet.implicitWidth + Tokens.shadowMargin + Tokens.edgeGap
+    implicitHeight: sheet.implicitHeight + Tokens.shadowMargin * 2
 
     Sheet {
       id: sheet
       anchors.fill: parent
+      anchors.leftMargin: Tokens.shadowMargin
+      anchors.rightMargin: Tokens.edgeGap
+      anchors.topMargin: Tokens.shadowMargin
+      anchors.bottomMargin: Tokens.shadowMargin
       implicitWidth: 400
       title: "Sidecar"
       focus: true

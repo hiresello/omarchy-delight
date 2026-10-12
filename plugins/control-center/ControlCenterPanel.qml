@@ -1,8 +1,8 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import Quickshell
-import Quickshell.Hyprland
 import Quickshell.Wayland
-import qs.Commons
 import "Delight"
 
 // Control Center panel: a layer-shell card under the bar, top-right, hosting
@@ -13,9 +13,12 @@ Item {
   property var shell: null
   property var manifest: null
   property bool opened: false
-  // When the focus grab last closed us; a bar click that cleared the grab
-  // must not reopen the panel it just dismissed.
+  // When an outside click last closed us; the bar click that caused it must
+  // not reopen the panel it just dismissed.
   property real dismissedAt: 0
+  // Card's distance from the screen's right edge; beneath the bar icon when
+  // the bar opened us, else the window gap.
+  property int rightInset: Tokens.edgeGap
   readonly property string pluginId: "delight.control-center"
   property alias store: statusStore
   property alias actions: commands
@@ -29,6 +32,9 @@ Item {
       return
     }
     Tokens.refresh()
+    let centred = payload.anchorX > 0 && payload.barWidth > 0
+      ? Math.round(payload.barWidth - payload.anchorX - Tokens.sheetWidth / 2) : 0
+    rightInset = Math.max(Tokens.edgeGap, centred)
     content.showInstall = payload.view === "install"
     opened = true
     statusStore.refresh()
@@ -69,32 +75,54 @@ Item {
     onTriggered: statusStore.refresh()
   }
 
+  // Outside-click dismissal: while open, a transparent full-screen layer on
+  // every output closes the panel on any press. It sits on the Top layer, above
+  // windows and (mapped later) the bar, so clicking the bar icon again closes
+  // rather than re-toggles; the card is on Overlay, always above it. The
+  // namespace avoids the "^delight-" blur rule so it costs no blur pass.
   // qmllint's Quickshell type info marks PanelWindow uncreatable; the shell creates it fine.
   // qmllint disable uncreatable-type missing-property
+  Variants {
+    model: Quickshell.screens
+    delegate: PanelWindow {
+      required property var modelData
+      screen: modelData
+      visible: root.opened
+      color: "transparent"
+      anchors { top: true; bottom: true; left: true; right: true }
+      exclusionMode: ExclusionMode.Ignore
+      WlrLayershell.layer: WlrLayer.Top
+      WlrLayershell.namespace: "control-center-dismiss-delight"
+      WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+
+      MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.AllButtons
+        onPressed: {
+          root.dismissedAt = Date.now()
+          root.requestClose()
+        }
+      }
+    }
+  }
+
   PanelWindow {
     id: window
     visible: root.opened
     color: "transparent"
     anchors { top: true; right: true }
-    // The card lines up with window gaps; the surface extends past it by
-    // shadowMargin so the baked shadow has room.
-    margins { top: Style.gapsOut * 2 - Tokens.shadowMargin; right: Style.gapsOut * 2 - Tokens.shadowMargin }
+    // The card lines up with window gaps (or the bar icon). The surface adds
+    // shadowMargin around it for the baked shadow, but never past the screen
+    // edge, where a layer would be cropped.
+    readonly property int rightMargin: Math.max(0, root.rightInset - Tokens.shadowMargin)
+    readonly property int innerRight: root.rightInset - rightMargin
+    margins { top: Tokens.edgeGap - Tokens.shadowMargin; right: window.rightMargin }
     exclusionMode: ExclusionMode.Normal
-    implicitWidth: content.implicitWidth + Tokens.shadowMargin * 2
+    implicitWidth: Tokens.shadowMargin + content.implicitWidth + window.innerRight
     implicitHeight: content.implicitHeight + Tokens.shadowMargin * 2
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.namespace: "delight-control-center"
     WlrLayershell.keyboardFocus: root.opened ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
-
-    HyprlandFocusGrab {
-      // Only a mapped surface can hold the grab; arming it earlier is dropped.
-      active: root.opened && window.backingWindowVisible
-      windows: [window]
-      onCleared: {
-        root.dismissedAt = Date.now()
-        root.requestClose()
-      }
-    }
 
     ControlCenterView {
       id: content

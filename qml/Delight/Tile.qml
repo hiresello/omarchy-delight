@@ -140,6 +140,9 @@ Item {
       color: Tokens.foreground
       font.family: Tokens.fontFamily
       font.pixelSize: Tokens.fontSize
+      // Wide theme fonts (ui.font: "theme") shrink slightly before eliding.
+      fontSizeMode: Text.HorizontalFit
+      minimumPixelSize: Tokens.fontSizeSmall
       font.weight: Font.DemiBold
     }
     Text {
