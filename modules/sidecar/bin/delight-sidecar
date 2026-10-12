@@ -508,16 +508,14 @@ module_install() {
     fi
   fi
   if ! delight_pkg_present sunshine && ! delight_has_cmd sunshine; then
-    if delight_has_cmd omarchy-install-service-sunshine; then
-      delight_run omarchy-install-service-sunshine || delight_die "$id: omarchy-install-service-sunshine failed"
-      delight_state_flag_set "$id" sunshine_via_omarchy true
-    else
-      backend=aur
-      delight_has_cmd omarchy-pkg-add && backend=repo
-      delight_pkg_add "$id" "$backend" sunshine
-      for port in "${SIDECAR_TCP_PORTS[@]}"; do delight_ufw_allow "$id" tcp "$port"; done
-      for port in "${SIDECAR_UDP_PORTS[@]}"; do delight_ufw_allow "$id" udp "$port"; done
-    fi
+    # Not omarchy-install-service-sunshine: on Omarchy 4.0.4 it fails after
+    # installing the package, and its firewall, autostart and web app changes
+    # aren't recorded, so uninstall couldn't undo them.
+    backend=aur
+    delight_has_cmd omarchy-pkg-add && backend=repo
+    delight_pkg_add "$id" "$backend" sunshine
+    for port in "${SIDECAR_TCP_PORTS[@]}"; do delight_ufw_allow "$id" tcp "$port"; done
+    for port in "${SIDECAR_UDP_PORTS[@]}"; do delight_ufw_allow "$id" udp "$port"; done
   fi
   delight_pkg_add "$id" repo qrencode
   if [[ $deskreen == "true" ]]; then
