@@ -7,7 +7,7 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
 
 docker run --rm -v "$PWD:/src:ro" archlinux:latest bash -euc '
   pacman -Syu --noconfirm --needed bash jq git shellcheck shfmt qt6-declarative quickshell \
-    python python-jsonschema util-linux diffutils findutils sudo >/dev/null
+    python python-jsonschema util-linux diffutils findutils sudo rust pkgconf dbus >/dev/null
   git clone -q --depth 1 https://github.com/omacom/omarchy.git /tmp/omarchy
   useradd -m tester
   cp -r /src /work && chown -R tester /work && cd /work
@@ -15,5 +15,6 @@ docker run --rm -v "$PWD:/src:ro" archlinux:latest bash -euc '
   ci/lint-qml.sh /tmp/omarchy
   ci/validate-json.py
   ci/validate-plugins.sh /tmp/omarchy
+  ci/check-daemon.sh
   sudo -u tester env PATH="$PATH" tests/run
 '

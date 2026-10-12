@@ -1,5 +1,0 @@
-#!/bin/bash
-printf 'ip %s\n' "$*" >>"${DELIGHT_STUB_LOG:-/dev/null}"
-if [[ ${DELIGHT_PHONE_NO_PRIVATE_IP:-false} != "true" ]]; then
-  printf '2: wlan0    inet 192.168.1.42/24 brd 192.168.1.255 scope global wlan0\n'
-fi

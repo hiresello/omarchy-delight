@@ -67,7 +67,7 @@ sandbox() {
 repo_copy() {
   local dest="$SANDBOX/repo"
   mkdir -p "$dest"
-  tar -C "$DELIGHT_TEST_REPO" --exclude=.git -cf - . | tar -C "$dest" -xf -
+  tar -C "$DELIGHT_TEST_REPO" --exclude=.git --exclude=./daemon/target -cf - . | tar -C "$dest" -xf -
   printf '%s\n' "$dest"
 }
 

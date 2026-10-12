@@ -1,0 +1,12 @@
+{
+  "adapter": "hci0",
+  "powered": true,
+  "advertising": true,
+  "pairing": false,
+  "phones": [
+    { "name": "Juan's iPhone", "address": "4C:57:CA:12:34:56", "connected": true, "paired": true, "notifications": true, "media": true },
+    { "name": "Unpaired", "address": "11:22:33:44:55:66", "connected": false, "paired": false, "notifications": false, "media": false }
+  ],
+  "nowPlaying": { "player": "Music", "playing": true, "elapsed": 12.5, "volume": 0.5, "artist": "M83", "album": null, "title": "Midnight City", "duration": 243.9 },
+  "error": null
+}

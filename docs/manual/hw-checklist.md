@@ -9,7 +9,7 @@ and the Omarchy 4 VM (`tests/e2e/vm-continuity.sh`).
 ## You need
 
 - An Omarchy 4 laptop with Wi-Fi and Bluetooth, on a private Wi-Fi network.
-- An Android phone and an iPhone with LocalSend, KDE Connect, Syncthing-Fork
+- An Android phone and an iPhone with LocalSend, Syncthing-Fork
   (Android) and DroidCam installed.
 - A Mac (Deskflow or Lan Mouse; AirPlay sender).
 - An iPad with Moonlight.
@@ -34,8 +34,8 @@ Open the Control Center (**Delight → Control Center**): one tile per module.
 
 | # | Feature | Check | Script |
 | --- | --- | --- | --- |
-| 1 | Phone | Pair Android; copy text both ways in under 2 s; notification dismiss syncs both ways; SMS reply; ring | [phone README](../../modules/phone/README.md#hw-phone-acceptance) |
-| 2 | Phone | Pair iPhone; clipboard with app in foreground; send a file | same, step 7 |
+| 1 | iPhone | Pair from Settings › Bluetooth (no app); a message shows within 2 s and closes when cleared on the phone | [phone README](../../modules/phone/README.md#hw-acceptance) |
+| 2 | iPhone | Decline a call from the desktop toast; play/pause and next from the Control Center | same, steps 3–4 |
 | 3 | Share | From Files → **Share…**, send to each phone; receive a photo from Android | [share README](../../modules/share/README.md#hw-manual-test--real-phones) |
 | 4 | AirPlay | Play Music from iPhone; volume follows; switch sender to Mac; rename | [airplay README](../../modules/airplay/README.md#hw-manual-verification) |
 | 5 | Universal Control | Pointer and typing cross to the Mac and back; clipboard; release hotkey | [input README](../../modules/input/README.md#manual-hardware-test) |
@@ -62,8 +62,7 @@ Record each run here (✅ works, ⚠️ works with caveats, ❌ fails, — not t
 
 | Feature | Device / OS | Laptop / chipset | Result | Notes | Date |
 | --- | --- | --- | --- | --- | --- |
-| Phone (clipboard, notifications, SMS) | Android | — | — | not yet measured | — |
-| Phone (clipboard, files) | iPhone | — | — | not yet measured | — |
+| iPhone (ANCS notifications, AMS media) | iPhone | — | — | not yet measured | — |
 | Share | Android, iPhone | — | — | not yet measured | — |
 | AirPlay | iPhone, Mac | — | — | not yet measured | — |
 | Universal Control | Mac | — | — | not yet measured | — |

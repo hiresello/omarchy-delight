@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **iPhone (phone module):** replaced KDE Connect with `delightd` (`daemon/`), Delight's own Rust implementation of Apple's ANCS and AMS Bluetooth LE services. iPhone notifications (with their actions) and media control work with no app on the iPhone and no KDE Connect. Clipboard, SMS, ring and file sending are gone from this module until their native versions land (Universal Clipboard needs the Apple Account bridge; files move to AirDrop). Not yet verified on a real iPhone.
+
 ## v0.1.0 — unreleased
 
 First release: macOS-style Continuity features for Omarchy 4, as independent

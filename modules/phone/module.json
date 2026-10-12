@@ -1,23 +1,19 @@
 {
   "schema": 1,
   "id": "phone",
-  "name": "Phone",
-  "icon": "󰄜",
-  "description": "KDE Connect phone link, Universal Clipboard, notifications, and SMS.",
-  "packages": { "repo": ["kdeconnect", "qrencode"], "aur": [] },
-  "units": ["delight-phone.service", "delight-phone-bridge.service"],
-  "firewall": [
-    { "proto": "tcp", "ports": "1714:1764", "description": "KDE Connect" },
-    { "proto": "udp", "ports": "1714:1764", "description": "KDE Connect" }
-  ],
-  "capabilities": ["network", "hyprland"],
-  "provides": { "shareTargets": true, "devices": true },
+  "name": "iPhone",
+  "icon": "󰀷",
+  "description": "Native iPhone link over Bluetooth LE: notifications with actions (ANCS) and media control (AMS). No iPhone app.",
+  "packages": { "repo": ["bluez"], "aur": [] },
+  "units": ["delight-phone.service"],
+  "firewall": [],
+  "capabilities": ["bluetooth"],
+  "provides": { "shareTargets": false, "devices": true },
   "plugin": "plugin",
   "menu": [
-    { "id": "open", "label": "Phone", "action": "delight phone open" },
-    { "id": "pair", "label": "Pair a phone", "action": "delight phone pair" },
-    { "id": "ring", "label": "Ring my phone", "action": "delight phone ring" },
-    { "id": "sms", "label": "Messages", "action": "delight phone sms open" },
-    { "id": "toggle", "label": "Toggle Phone", "icon": "󰄜", "action": "delight phone toggle" }
+    { "id": "open", "label": "iPhone", "action": "delight phone open" },
+    { "id": "pair", "label": "Pair an iPhone", "action": "delight phone pair" },
+    { "id": "media", "label": "Play/pause on iPhone", "action": "delight phone media toggle" },
+    { "id": "toggle", "label": "Toggle iPhone link", "icon": "󰀷", "action": "delight phone toggle" }
   ]
 }

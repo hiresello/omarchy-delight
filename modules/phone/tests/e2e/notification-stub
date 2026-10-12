@@ -1,6 +1,0 @@
-#!/bin/bash
-
-set -euo pipefail
-
-printf '%s\n' "$*" >>"/artifacts/omarchy-notification-$HOSTNAME.log"
-printf '77\n'

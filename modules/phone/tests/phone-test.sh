@@ -4,154 +4,71 @@
 source "$(dirname -- "${BASH_SOURCE[0]}")/../../../tests/lib/tap.sh"
 
 sandbox
-export PATH="$DELIGHT_TEST_REPO/modules/phone/tests/stubs:$PATH"
-export DELIGHT_PHONE_FIXTURE="$DELIGHT_TEST_REPO/modules/phone/tests/fixtures/devices.json"
-
 ROOT="$DELIGHT_TEST_REPO"
 BIN="$ROOT/modules/phone/bin/delight-phone"
 SCHEMA="$ROOT/schema"
-FIXTURES="$ROOT/modules/phone/tests/fixtures"
-# shellcheck source=../lib/phone.sh
-source "$ROOT/modules/phone/lib/phone.sh"
-mkdir -p "$HOME/.config"
-printf '%s\n' "keep me" >"$HOME/.config/kdeconnect.notifyrc"
-touch "$DELIGHT_STUB_STATE/pkg-kdeconnect"
+FIXTURE="$ROOT/modules/phone/tests/fixtures/delightd.json"
+export DELIGHT_PHONE_FIXTURE="$FIXTURE"
+export DELIGHT_SYSFS="$SANDBOX/sys"
+mkdir -p "$DELIGHT_SYSFS/class/bluetooth/hci0"
+STUB_DAEMON="$ROOT/modules/phone/tests/stubs/delightd"
+export DELIGHT_DELIGHTD_SOURCE="$STUB_DAEMON"
+touch "$DELIGHT_STUB_STATE/pkg-bluez"
+STATUS_FILE="$XDG_RUNTIME_DIR/omarchy-delight/delightd.json"
+DAEMON="$HOME/.local/lib/omarchy-delight/delightd"
 
-devices_json() {
-  "$BIN" devices --json
+state() {
+  "$BIN" status --json | jq -r "$1"
 }
 
-share_targets_json() {
-  "$BIN" share-targets --json
-}
+is "before install: needs-setup" "$(state .state)" "needs-setup"
+ok "install" "$BIN" install
+ok "install copies delightd" test -x "$DAEMON"
+ok "install pulls no KDE Connect or phone-app packages" tap_not grep -Eq "kdeconnect|localsend" "$DELIGHT_STUB_LOG"
+is "installed, disabled: off" "$(state .state)" "off"
+ok "enable" "$BIN" enable
+ok "enable starts delightd's unit" grep -F "enable --now delight-phone.service" "$DELIGHT_STUB_LOG"
+is "enabled before delightd reports: Starting" "$(state .subtitle)" "Starting…"
 
-devices=$(devices_json)
-ok "paired devices validate against schema" schema_valid "$SCHEMA/device.schema.json" <(printf '%s\n' "$devices")
-is "busctl array return data is unwrapped" \
-  "$(phone_json_data '{"type":"as","data":[["device-a","device-b"]]}')" \
-  '["device-a","device-b"]'
-is "reachable Android device includes battery state" \
-  "$(jq -c '.[] | select(.id == "pixel8") | [.name,.kind,.connected,.battery.charge,.battery.charging]' <<<"$devices")" \
-  '["Pixel 8","phone",true,82,true]'
-is "unreachable iPhone is marked limited" \
-  "$(jq -c '.[] | select(.id == "iphone") | [.name,.connected,.limited]' <<<"$devices")" \
-  '["iPhone",false,true]'
-is "missing daemon produces empty device list" \
-  "$(DELIGHT_PHONE_NO_DAEMON=true devices_json)" "[]"
-
-targets=$(share_targets_json)
-ok "share targets validate against schema" schema_valid "$SCHEMA/share-target.schema.json" <(printf '%s\n' "$targets")
-is "only reachable share-enabled phone is exposed" \
-  "$(jq -c 'map(.id)' <<<"$targets")" '["phone:pixel8"]'
-printf '%s\n' "send me" >"$SANDBOX/shared file.txt"
-ok "send shares an absolute file path" "$BIN" send phone:pixel8 "$SANDBOX/shared file.txt"
-ok "share command has KDE Connect arguments" grep -F "kdeconnect-cli --share $SANDBOX/shared file.txt -d pixel8" "$DELIGHT_STUB_LOG"
-not_ok "unknown share target fails" "$BIN" send phone:unknown "$SANDBOX/shared file.txt"
-not_ok "missing file fails" "$BIN" send phone:pixel8 "$SANDBOX/missing.txt"
-
-: >"$DELIGHT_STUB_LOG"
-ok "ring uses the reachable paired device" "$BIN" ring
-ok "ring command has KDE Connect arguments" grep -F "kdeconnect-cli --ring -d pixel8" "$DELIGHT_STUB_LOG"
-not_ok "ring fails when no phone is reachable" env DELIGHT_PHONE_NO_REACHABLE=true "$BIN" ring
-
-ok "module install prepares status and runtime" "$BIN" install
-ok "module enable configures the daemon" "$BIN" enable
+mkdir -p "${STATUS_FILE%/*}"
+cp "$FIXTURE" "$STATUS_FILE"
 status=$("$BIN" status --json)
-ok "enabled status validates against schema" schema_valid "$SCHEMA/status.schema.json" <(printf '%s\n' "$status")
-is "enabled status is on" "$(jq -r '.state' <<<"$status")" "on"
-ok "enabled subtitle names Pixel and charge" jq -e '.subtitle | contains("Pixel 8") and contains("82%")' <<<"$status"
-ok "reachable status offers Ring" jq -e 'any(.actions[]; .label == "Ring")' <<<"$status"
-starting=$(DELIGHT_PHONE_NO_DAEMON=true "$BIN" status --json)
-is "enabled status remains on while daemon starts" "$(jq -r '.state' <<<"$starting")" "on"
-ok "missing daemon status says Starting" jq -e '.subtitle | contains("Starting")' <<<"$starting"
-not_ok "unreachable status omits Ring" jq -e 'any(.actions[]; .label == "Ring")' <<<"$starting"
+ok "status validates" schema_valid "$SCHEMA/status.schema.json" <(printf '%s\n' "$status")
+is "now playing is the subtitle" "$(jq -r .subtitle <<<"$status")" "▶ Midnight City · M83"
+ok "media actions offered while playing" jq -e 'any(.actions[]; .label == "Play/Pause")' <<<"$status"
+devices=$("$BIN" devices --json)
+ok "devices validate" schema_valid "$SCHEMA/device.schema.json" <(printf '%s\n' "$devices")
+is "only paired iPhones are devices" "$(jq -c 'map([.name,.transport,.connected])' <<<"$devices")" '[["Juan'"'"'s iPhone","ble",true]]'
 
-pair=$("$BIN" pair --json)
-ok "pairing JSON has expected shape" jq -e '
-  .name == "Delight PC" and .id == "computer-id" and
-  (.addresses | index("192.168.1.42") != null) and .discoverable[0].id == "newphone" and
-  .requests[0].verificationKey == "PAIR-5678" and .qr != "" and .appUrl != ""
-' <<<"$pair"
-ok "pair accept calls acceptPairing" "$BIN" pair accept request1
-ok "pairing request call is logged" grep -F "acceptPairing" "$DELIGHT_STUB_LOG"
+jq '.nowPlaying = null' "$FIXTURE" >"$STATUS_FILE"
+is "connected, nothing playing" "$(state .subtitle)" "Juan's iPhone · connected"
+jq '.phones = [] | .nowPlaying = null' "$FIXTURE" >"$STATUS_FILE"
+is "no phone paired" "$(state .subtitle)" "No iPhone paired"
+ok "doctor asks the user to pair" bash -c '"$1" doctor; test $? -eq 3' _ "$BIN"
+jq '.pairing = true' "$FIXTURE" >"$STATUS_FILE"
+ok "pairing subtitle tells the user where to tap" jq -e '.subtitle | startswith("Pairing")' <<<"$("$BIN" status --json)"
+jq '.error = "cannot advertise: Not Supported"' "$FIXTURE" >"$STATUS_FILE"
+is "daemon error surfaces as error" "$(state .state)" "error"
+is "error reason is the daemon's" "$(state .reason)" "cannot advertise: Not Supported"
+cp "$FIXTURE" "$STATUS_FILE"
 
-signal='{"type":"signal","member":"notificationPosted","path":"/modules/kdeconnect/devices/pixel8/notifications","interface":"org.kde.kdeconnect.device.notifications","payload":{"type":"s","data":["notif_1"]}}'
-ok "notificationPosted is handled" "$BIN" handle-signal "$signal"
-ok "mirrored notification uses app, title, and body" grep -F 'omarchy-notification-send --app-name omarchy-delight-phone -g 󰄜 -p Messages New message: Hello there' "$DELIGHT_STUB_LOG"
-map="$XDG_RUNTIME_DIR/omarchy-delight/phone/notifications.json"
-ok "notification ID mapping is stored" jq -e '."pixel8/notif_1" == "77"' "$map"
-removed='{"type":"signal","member":"notificationRemoved","path":"/modules/kdeconnect/devices/pixel8/notifications","interface":"org.kde.kdeconnect.device.notifications","payload":{"type":"s","data":["notif_1"]}}'
-ok "notificationRemoved closes desktop notification" "$BIN" handle-signal "$removed"
-ok "notification close method is logged" grep -F "CloseNotification u 77" "$DELIGHT_STUB_LOG"
-ok "notification mapping is removed" jq -e 'has("pixel8/notif_1") | not' "$map"
+export DELIGHT_DELIGHTD="$STUB_DAEMON"
+: >"$DELIGHT_STUB_LOG"
+ok "pair opens the pairing window" "$BIN" pair
+ok "pair asks delightd" grep -Fx "delightd pair" "$DELIGHT_STUB_LOG"
+ok "pair tells the user what to tap" grep -F "Settings › Bluetooth" "$DELIGHT_STUB_LOG"
+ok "media toggle" "$BIN" media toggle
+ok "media goes to delightd" grep -Fx "delightd media toggle" "$DELIGHT_STUB_LOG"
+not_ok "unknown media command fails" "$BIN" media eject
+not_ok "media fails without a connected iPhone" env DELIGHT_PHONE_NO_MEDIA=true "$BIN" media next
+unset DELIGHT_DELIGHTD
 
-ok "notificationPosted creates mapping for reverse dismissal" "$BIN" handle-signal "$signal"
-closed='{"type":"signal","member":"NotificationClosed","path":"/org/freedesktop/Notifications","interface":"org.freedesktop.Notifications","payload":{"type":"(uu)","data":[77,2]}}'
-ok "desktop dismissal asks phone to dismiss" "$BIN" handle-signal "$closed"
-ok "phone dismiss method is logged" grep -F "/devices/pixel8/notifications/notif_1 org.kde.kdeconnect.device.notifications.notification dismiss" "$DELIGHT_STUB_LOG"
-silent='{"type":"signal","member":"notificationPosted","path":"/modules/kdeconnect/devices/pixel8/notifications","interface":"org.kde.kdeconnect.device.notifications","payload":{"type":"s","data":["notif_2"]}}'
-ok "silent notification is ignored" env DELIGHT_PHONE_SILENT=true "$BIN" handle-signal "$silent"
-ok "silent notification is not mapped" jq -e 'has("pixel8/notif_2") | not' "$map"
-is "captured busctl monitor signal arguments use payload.data" \
-  "$(phone_signal_value "$(cat "$FIXTURES/busctl-monitor-device-added.json")" 0)" \
-  "3c706fbf499946c58868486595c3e5d4"
-is "captured notificationPosted monitor arguments use payload.data" \
-  "$(phone_signal_value "$(cat "$FIXTURES/busctl-monitor-notification-posted.json")" 0)" \
-  "1"
-watch_stub_log="$SANDBOX/watch-stub.log"
-ok "watch ignores non-JSON output and handles the next monitor line" \
-  env DELIGHT_PHONE_MONITOR_FILE="$FIXTURES/busctl-monitor-watch-mixed.txt" \
-  DELIGHT_STUB_LOG="$watch_stub_log" "$BIN" watch
-ok "watch consumed the captured JSON monitor event" \
-  grep -F "devices bb false true" "$watch_stub_log"
+rm -rf "$DELIGHT_SYSFS/class/bluetooth/hci0"
+is "no Bluetooth adapter: unsupported" "$(state .state)" "unsupported"
+ok "doctor reports unsupported" bash -c '"$1" doctor; test $? -eq 2' _ "$BIN"
+mkdir -p "$DELIGHT_SYSFS/class/bluetooth/hci0"
 
-sms=$("$BIN" sms list --json)
-is "SMS list parses conversation message fields" \
-  "$(jq -c 'map([.threadId,.addresses[0],.body,.read,.outgoing])' <<<"$sms")" \
-  '[[42,"+15551234567","Reply from the computer",true,true],[42,"+15551234567","Hello from the phone",true,false]]'
-ok "SMS reply succeeds" "$BIN" sms reply 42 "Reply from Delight"
-ok "SMS reply uses conversations D-Bus signature" grep -F "replyToConversation xsav 42 Reply from Delight 0" "$DELIGHT_STUB_LOG"
-message_signal='{"type":"signal","member":"conversationCreated","path":"/modules/kdeconnect/devices/pixel8","interface":"org.kde.kdeconnect.device.conversations","payload":{"type":"v","data":[{"type":"(isaxiiixxav)","data":[1,"Cached SMS", [{"type":"(s)","data":["+15551234567"]}],1728600002000,1,0,42,9,0,[]]}]}}'
-ok "conversationCreated updates SMS cache" "$BIN" handle-signal "$message_signal"
-loaded_signal='{"type":"signal","member":"conversationLoaded","path":"/modules/kdeconnect/devices/pixel8","interface":"org.kde.kdeconnect.device.conversations","payload":{"type":"(xt)","data":[42,3]}}'
-ok "conversationLoaded marks a thread ready" "$BIN" handle-signal "$loaded_signal"
-ok "SMS thread reads the cached messages" jq -s -e 'any(.[]; .body == "Cached SMS")' "$XDG_RUNTIME_DIR/omarchy-delight/phone/sms/pixel8.jsonl"
-thread=$("$BIN" sms thread 42 --json)
-ok "SMS thread filters cache by thread ID" jq -e 'length == 1 and .[0].body == "Cached SMS"' <<<"$thread"
-limited_output=$(DELIGHT_PHONE_NO_DAEMON=false "$BIN" sms list --json --device iphone 2>&1)
-limited_rc=$?
-is "limited device SMS reports exit code 3" "$limited_rc" "3"
-ok "limited device explains Android requirement" grep -F "SMS needs the Android app" <<<"$limited_output"
-
-ok "install succeeds with preinstalled kdeconnect" "$BIN" install
-state_file="$HOME/.local/state/omarchy-delight/phone/installed.json"
-is "preinstalled kdeconnect is not owned" \
-  "$(jq -r '[.packages[].name] | index("kdeconnect") // "none"' "$state_file")" "none"
-is "new packages are tracked" "$(jq -r '[.packages[].name] | index("qrencode") != null' "$state_file")" "true"
-ok "pre-existing notifyrc is preserved" grep -Fx "keep me" "$HOME/.config/kdeconnect.notifyrc"
-is "pre-existing notifyrc is not recorded" \
-  "$(jq -r --arg path "$HOME/.config/kdeconnect.notifyrc" '[.files[] | select(. == $path)] | length' "$state_file")" "0"
-ok "autostart and D-Bus overrides are installed" test -f "$HOME/.config/autostart/org.kde.kdeconnect.daemon.desktop" -a -f "$HOME/.local/share/dbus-1/services/org.kde.kdeconnect.service"
-firewall_rules_present() {
-  local proto cidr
-  for proto in tcp udp; do
-    for cidr in 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16; do
-      grep -Fq "ufw allow in proto $proto from $cidr to any port 1714:1764 comment omarchy-delight:phone" "$DELIGHT_STUB_LOG" || return 1
-    done
-  done
-}
-ok "both firewall protocols are restricted to all three private subnets" firewall_rules_present
-ok "unit files are installed" test -f "$HOME/.config/systemd/user/delight-phone.service" -a -f "$HOME/.config/systemd/user/delight-phone-bridge.service"
-touch "$DELIGHT_STUB_STATE/pkg-qrencode"
-ok "uninstall succeeds" "$BIN" uninstall
-not_ok "uninstall removes module-owned D-Bus service file" test -e "$HOME/.local/share/dbus-1/services/org.kde.kdeconnect.service"
-not_ok "uninstall removes module units" test -e "$HOME/.config/systemd/user/delight-phone.service" -o -e "$HOME/.config/systemd/user/delight-phone-bridge.service"
-ok "uninstall preserves pre-existing notifyrc" grep -Fx "keep me" "$HOME/.config/kdeconnect.notifyrc"
-not_ok "uninstall preserves preinstalled kdeconnect package" grep -F "pacman -Rns --noconfirm -- kdeconnect" "$DELIGHT_STUB_LOG"
-ok "uninstall removes package recorded as module-owned" grep -F "pacman -Rns --noconfirm -- qrencode" "$DELIGHT_STUB_LOG"
-
-before_hash=$(tree_hash "$HOME" "$XDG_RUNTIME_DIR")
-ok "dry-run install exits successfully" env DELIGHT_DRY_RUN=1 "$BIN" install
-is "dry-run install does not touch home or runtime" "$(tree_hash "$HOME" "$XDG_RUNTIME_DIR")" "$before_hash"
+ok "uninstall" "$BIN" uninstall
+not_ok "uninstall removes delightd" test -e "$DAEMON"
 
 done_testing

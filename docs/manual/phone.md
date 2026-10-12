@@ -1,23 +1,23 @@
-# Phone and Universal Clipboard
+# iPhone
 
-Links your phone through [KDE Connect](https://kdeconnect.kde.org): shared
-clipboard, notifications, SMS replies, file sending, ring and battery.
+Delight links your iPhone natively over Bluetooth LE, with no app on the
+iPhone: notifications with their actions, and media control.
 
 ```bash
 delight phone install && delight phone enable
 delight phone pair
 ```
 
-**Pairing:** install KDE Connect on the phone (the QR on the pairing sheet
-links to the download), tap this computer in the app, and confirm the key on
-the sheet. On Android you can also add the computer by IP. The apps can't scan
-a QR to pair.
+**Pairing:** on the iPhone, open **Settings › Bluetooth**, tap this computer,
+confirm the code, and allow notifications. It reconnects on its own after
+that.
 
-- **Clipboard** syncs both ways while both devices are connected (iPhone: only
-  while the app is in the foreground).
-- **Notifications** from the phone appear on the desktop; reply to SMS from
-  the Messages panel.
-- **Files:** the paired phone appears in the share sheet.
+- **Notifications** from the iPhone appear on the desktop with their actions
+  (Decline a call, Clear a message), and close when you clear them on the
+  phone.
+- **Media:** what's playing shows in the Control Center, with play/pause and
+  next.
 
-Firewall: TCP and UDP 1714–1764, private ranges only. Details:
+Needs a Bluetooth adapter. No firewall ports. Calls and Messages are next;
+Universal Clipboard needs the experimental Apple Account bridge. Details:
 [modules/phone/README.md](../../modules/phone/README.md).

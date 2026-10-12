@@ -1,5 +1,0 @@
-#!/bin/bash
-printf 'journalctl %s\n' "$*" >>"${DELIGHT_STUB_LOG:-/dev/null}"
-if [[ ${DELIGHT_PHONE_QT_CLIPBOARD_FALLBACK:-false} == "true" ]]; then
-  printf '%s\n' "Could not init WaylandClipboard, falling back to QtClipboard."
-fi

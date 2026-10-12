@@ -10,5 +10,6 @@
   "ui": ["plugins/control-center/**", "qml/Delight/**", "docs/design.md"],
   "vm": ["vm/**", "docs/vm.md", ".github/workflows/vm.yml"],
   "research": ["research/**"],
-  "integration": ["tests/e2e/**", "docs/manual/**", "CHANGELOG.md"]
+  "integration": ["tests/e2e/**", "docs/manual/**", "CHANGELOG.md"],
+  "daemon": ["daemon/**"]
 }

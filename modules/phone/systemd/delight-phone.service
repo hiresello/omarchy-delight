@@ -1,14 +1,12 @@
 [Unit]
-Description=KDE Connect daemon for Omarchy Delight
+Description=Omarchy Delight native iPhone link (delightd)
 PartOf=delight.target
-After=graphical-session.target
+After=graphical-session.target bluetooth.target
 
 [Service]
-Type=dbus
-BusName=org.kde.kdeconnect
-ExecStart=/usr/bin/kdeconnectd
-Environment=QT_QPA_PLATFORM=wayland
+ExecStart=%h/.local/lib/omarchy-delight/delightd run
 Restart=on-failure
+RestartSec=5
 
 [Install]
 WantedBy=delight.target

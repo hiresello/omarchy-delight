@@ -16,7 +16,7 @@ jobs:
       - name: Install tools
         run: |
           pacman -Syu --noconfirm --needed bash jq git shellcheck shfmt qt6-declarative quickshell \
-            python python-jsonschema util-linux diffutils findutils sudo
+            python python-jsonschema util-linux diffutils findutils sudo rust pkgconf dbus
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -32,6 +32,8 @@ jobs:
         run: ci/validate-json.py
       - name: Omarchy plugin validation
         run: ci/validate-plugins.sh /tmp/omarchy
+      - name: delightd
+        run: ci/check-daemon.sh
       - name: Tests
         run: |
           useradd -m tester

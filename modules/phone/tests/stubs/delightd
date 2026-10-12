@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# Test stand-in for daemon/ delightd's client commands.
+printf 'delightd %s\n' "$*" >>"${DELIGHT_STUB_LOG:-/dev/null}"
+case "${1:-}" in
+  pair) echo "pairing for 120s" ;;
+  media)
+    [[ ${DELIGHT_PHONE_NO_MEDIA:-} == "true" ]] && {
+      echo "error: no iPhone with media control connected"
+      exit 1
+    }
+    echo ok
+    ;;
+  status) cat "$DELIGHT_PHONE_FIXTURE" ;;
+  *) exit 2 ;;
+esac

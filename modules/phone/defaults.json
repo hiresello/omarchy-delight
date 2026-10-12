@@ -1,5 +1,3 @@
 {
-  "enabled": false,
-  "clipboard": true,
-  "notifications": true
+  "enabled": false
 }

@@ -1,5 +1,0 @@
-#!/bin/bash
-printf 'omarchy-notification-send %s\n' "$*" >>"${DELIGHT_STUB_LOG:-/dev/null}"
-if [[ " $* " == *" -p "* ]]; then
-  printf '%s\n' "${DELIGHT_PHONE_NOTIFICATION_ID:-77}"
-fi

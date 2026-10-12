@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "id": "delight.phone",
-  "name": "Delight Phone",
-  "version": "0.1.0",
-  "description": "KDE Connect phone panel for Omarchy Delight.",
+  "name": "Delight iPhone",
+  "version": "0.2.0",
+  "description": "Native iPhone link: notifications, media and pairing.",
   "kinds": ["panel"],
   "entryPoints": { "panel": "Panel.qml" }
 }

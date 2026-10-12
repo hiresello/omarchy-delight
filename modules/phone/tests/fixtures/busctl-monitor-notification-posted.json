@@ -1,1 +1,0 @@
-{"type":"signal","endian":"l","flags":1,"version":1,"cookie":190,"timestamp-realtime":1791798426842876,"sender":":1.3","path":"/modules/kdeconnect/devices/76cdcb1059ff4171a33761104414c90b/notifications","interface":"org.kde.kdeconnect.device.notifications","member":"notificationPosted","payload":{"type":"s","data":["1"]}}

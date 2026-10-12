@@ -1,4 +1,0 @@
-[D-BUS Service]
-Name=org.kde.kdeconnect
-Exec=/usr/bin/kdeconnectd
-SystemdService=delight-phone.service
