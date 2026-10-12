@@ -62,7 +62,7 @@ Every `bin/delight-<id>` supports:
 |---|---|
 | `install` | Idempotent. Records everything it adds via the `delight_*` helpers. Honours `DELIGHT_DRY_RUN=1`. |
 | `uninstall` | Reverses exactly what `install` recorded; idempotent; a no-op when not installed. |
-| `enable` / `disable` | Set `config.modules.<id>.enabled`, start/stop units, rewrite the status file. |
+| `enable` / `disable` | Set `config.modules.<id>.enabled`, start/stop units, rewrite the status file. After `enable` the state is `on`, or `needs-setup` when the module is enabled but waits on the user (e.g. connecting a phone). |
 | `toggle` | `enable` when disabled, otherwise `disable`. |
 | `status [--json]` | `--json` prints one status object and **always exits 0**, including when unsupported. |
 | `doctor` | Human-readable diagnosis. Exit `0` ok, `1` fixable, `2` unsupported hardware/compositor, `3` needs user action. |
