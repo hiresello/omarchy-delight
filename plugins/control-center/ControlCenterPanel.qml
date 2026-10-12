@@ -19,6 +19,10 @@ Item {
   // Card's distance from the screen's right edge; beneath the bar icon when
   // the bar opened us, else the window gap.
   property int rightInset: Tokens.edgeGap
+  // Exclusive focus makes Hyprland send every pointer event to the card, so the
+  // dismiss layers would never see a click. Hold it briefly to take focus on
+  // open (as upstream KeyboardPanel does), then settle on OnDemand.
+  property bool focusPrimed: false
   readonly property string pluginId: "delight.control-center"
   property alias store: statusStore
   property alias actions: commands
@@ -36,7 +40,9 @@ Item {
       ? Math.round(payload.barWidth - payload.anchorX - Tokens.sheetWidth / 2) : 0
     rightInset = Math.max(Tokens.edgeGap, centred)
     content.showInstall = payload.view === "install"
+    focusPrimed = false
     opened = true
+    if (window.backingWindowVisible) focusPrimeTimer.restart()
     statusStore.refresh()
     catalog.refresh()
     Qt.callLater(function() { content.focusFirst() })
@@ -44,6 +50,7 @@ Item {
 
   function close() {
     opened = false
+    focusPrimed = false
     content.showInstall = false
     content.toast.hide()
   }
@@ -122,7 +129,16 @@ Item {
     implicitHeight: content.implicitHeight + Tokens.shadowMargin * 2
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.namespace: "delight-control-center"
-    WlrLayershell.keyboardFocus: root.opened ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+    WlrLayershell.keyboardFocus: root.opened
+      ? (root.focusPrimed ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.Exclusive)
+      : WlrKeyboardFocus.None
+    onBackingWindowVisibleChanged: if (root.opened && backingWindowVisible) focusPrimeTimer.restart()
+
+    Timer {
+      id: focusPrimeTimer
+      interval: 75
+      onTriggered: if (root.opened) root.focusPrimed = true
+    }
 
     ControlCenterView {
       id: content
