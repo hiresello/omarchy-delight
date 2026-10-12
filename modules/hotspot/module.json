@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "id": "hotspot",
+  "name": "Instant Hotspot",
+  "icon": "󰀂",
+  "description": "Connect to your phone's hotspot when it is nearby",
+  "packages": { "repo": [], "aur": [] },
+  "units": ["delight-hotspot.service"],
+  "firewall": [],
+  "capabilities": ["bluetooth", "wifi"],
+  "provides": { "shareTargets": false, "devices": true },
+  "plugin": "plugin",
+  "menu": [
+    { "id": "setup", "label": "Set up Instant Hotspot", "action": "delight hotspot open" },
+    { "id": "connect", "label": "Connect to phone hotspot", "action": "delight hotspot connect" },
+    { "id": "toggle", "label": "Toggle Instant Hotspot", "action": "delight hotspot toggle" }
+  ]
+}

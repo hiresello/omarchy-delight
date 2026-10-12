@@ -1,0 +1,15 @@
+[Unit]
+Description=Omarchy Delight: Instant Hotspot and phone proximity
+Documentation=https://github.com/hiresello/omarchy-delight
+PartOf=delight.target
+After=delight.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/delight hotspot watch
+Restart=on-failure
+RestartSec=10
+Nice=10
+
+[Install]
+WantedBy=delight.target

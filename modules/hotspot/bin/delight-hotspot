@@ -1,0 +1,411 @@
+#!/bin/bash
+
+# Module entry point. The id comes from this file's name (delight-<id>).
+# Override any verb by defining module_<verb>; the defaults live in
+# lib/delight/module.sh. Optional verbs: pair, open, share-targets --json,
+# send <target> <paths...>, devices --json.
+
+set -euo pipefail
+
+DELIGHT_ROOT=$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../../.." && pwd)
+# shellcheck source=../../../lib/delight/delight.sh
+source "$DELIGHT_ROOT/lib/delight/delight.sh"
+
+DELIGHT_MODULE_ID=$(basename -- "${BASH_SOURCE[0]}")
+DELIGHT_MODULE_ID=${DELIGHT_MODULE_ID#delight-}
+DELIGHT_MODULE_DIR="$DELIGHT_ROOT/modules/hotspot"
+# shellcheck source=../lib/nm.sh
+source "$DELIGHT_MODULE_DIR/lib/nm.sh"
+# shellcheck source=../lib/bt.sh
+source "$DELIGHT_MODULE_DIR/lib/bt.sh"
+# shellcheck source=../lib/proximity.sh
+source "$DELIGHT_MODULE_DIR/lib/proximity.sh"
+# shellcheck source=../lib/watch.sh
+source "$DELIGHT_MODULE_DIR/lib/watch.sh"
+
+hotspot_usage() {
+  cat <<'USAGE'
+Usage: delight hotspot <verb>
+
+  install | uninstall | enable | disable | toggle | status [--json] | doctor
+  setup [--ssid SSID] [--bt MAC] [--no-enable]
+  connect | open | lock-now | devices --json | candidates --json
+  watch [--once] | trace record <file> [--duration S] | trace replay <file>
+USAGE
+}
+
+delight_module_usage() {
+  hotspot_usage
+}
+
+hotspot_action() {
+  jq -cn --arg actionLabel "$1" --arg verb "$2" \
+    '{"label":$actionLabel,"command":["delight","hotspot",$verb]}'
+}
+
+hotspot_device_json() {
+  local mac name file connected=false rssi=null presence=unknown
+  mac=$(delight_config_get hotspot phone.mac)
+  [[ -n $mac ]] || {
+    printf '[]\n'
+    return 0
+  }
+  name=$(delight_config_get hotspot phone.name)
+  [[ -n $name ]] || name=$mac
+  file="$DELIGHT_RUNTIME_DIR/hotspot/proximity.json"
+  if [[ -f $file ]]; then
+    connected=$(jq -r '.connected // false' "$file")
+    rssi=$(jq -c '.rssi // null' "$file")
+    presence=$(jq -r '.presence // "unknown"' "$file")
+  fi
+  jq -cn --arg mac "$mac" --arg name "$name" --argjson connected "$connected" \
+    --argjson rssi "$rssi" --arg presence "$presence" \
+    '[{id:("bt-" + ($mac | ascii_downcase | gsub(":";""))),name:$name,kind:"phone",transport:"bluetooth",connected:$connected,rssi:$rssi,mac:$mac,presence:$presence}]'
+}
+
+hotspot_status() {
+  local name icon enabled configured mac ssid uuid active presence proximity actions devices subtitle pause
+  name=$(delight_module_field hotspot '.name')
+  icon=$(delight_module_field hotspot '.icon')
+  if ! delight_is_installed hotspot; then
+    delight_status_json --id hotspot --state needs-setup --title "$name" --subtitle "Not installed" --icon "$icon" \
+      --actions "$(hotspot_action Install install | jq -s .)"
+    return 0
+  fi
+  if ! delight_has_cmd nmcli; then
+    delight_status_json --id hotspot --state unsupported --title "$name" --subtitle "" --icon "$icon" \
+      --toggle false --reason "NetworkManager (nmcli) is not installed"
+    return 0
+  fi
+  if ! delight_hw_bluetooth; then
+    actions='[]'
+    if [[ -n $(delight_config_get hotspot connection) ]]; then
+      actions=$(hotspot_action "Connect to phone hotspot" connect | jq -s .)
+    fi
+    delight_status_json --id hotspot --state unsupported --title "$name" --subtitle "" --icon "$icon" \
+      --toggle false --reason "No Bluetooth adapter found; Instant Hotspot needs one to tell when your phone is near" \
+      --actions "$actions"
+    return 0
+  fi
+  enabled=$(delight_module_enabled && echo true || echo false)
+  mac=$(delight_config_get hotspot phone.mac)
+  uuid=$(delight_config_get hotspot connection)
+  ssid=$(delight_config_get hotspot ssid)
+  configured=$([[ -n $mac && -n $uuid ]] && echo true || echo false)
+  actions=$(hotspot_action "Set up…" open | jq -s .)
+  devices=$(hotspot_device_json)
+  if [[ $configured != true ]]; then
+    if [[ $enabled == true ]]; then
+      delight_status_json --id hotspot --state on --title "$name" --subtitle "Choose your phone" --icon "$icon" \
+        --devices "$devices" --actions "$actions"
+    else
+      delight_status_json --id hotspot --state off --title "$name" --subtitle "Not set up" --icon "$icon" \
+        --devices "$devices" --actions "$actions"
+    fi
+    return 0
+  fi
+  active=$(hotspot_nm_is_active "$uuid" && echo true || echo false)
+  presence=unknown
+  proximity="$DELIGHT_RUNTIME_DIR/hotspot/proximity.json"
+  [[ -f $proximity ]] && presence=$(jq -r '.presence // "unknown"' "$proximity")
+  subtitle="$ssid"
+  if [[ $enabled == true ]]; then
+    if [[ $active == true ]]; then
+      subtitle="Connected via $(delight_config_get hotspot phone.name)"
+    elif [[ $presence == paused ]]; then
+      pause=$(delight_config_get hotspot scan.pauseBelowBattery)
+      subtitle="Paused: battery below ${pause}%"
+    else
+      case "$presence" in
+        near) subtitle="$(delight_config_get hotspot phone.name) nearby" ;;
+        away) subtitle="$(delight_config_get hotspot phone.name) away" ;;
+        *) subtitle="Looking for $(delight_config_get hotspot phone.name)" ;;
+      esac
+    fi
+    if [[ $active == true ]]; then
+      actions=$(hotspot_action Settings open | jq -s .)
+    else
+      actions=$(jq -cn --arg name "$(delight_config_get hotspot phone.name)" \
+        '[{"label":("Connect to " + $name + " hotspot"),"command":["delight","hotspot","connect"]},{"label":"Settings","command":["delight","hotspot","open"]}]')
+    fi
+    delight_status_json --id hotspot --state on --title "$name" --subtitle "$subtitle" --icon "$icon" \
+      --devices "$devices" --actions "$actions"
+  else
+    subtitle="$(delight_config_get hotspot phone.name) · $ssid"
+    if [[ $active == true ]]; then
+      actions=$(hotspot_action Settings open | jq -s .)
+    else
+      actions=$(jq -cn --arg name "$(delight_config_get hotspot phone.name)" \
+        '[{"label":("Connect to " + $name + " hotspot"),"command":["delight","hotspot","connect"]},{"label":"Settings","command":["delight","hotspot","open"]}]')
+    fi
+    delight_status_json --id hotspot --state off --title "$name" --subtitle "$subtitle" --icon "$icon" \
+      --devices "$devices" --actions "$actions"
+  fi
+}
+
+# Exit 0 ok, 1 fixable, 2 unsupported hardware/compositor, 3 needs user action.
+module_install() {
+  delight_module_default_install
+}
+
+module_uninstall() {
+  hotspot_nm_restore
+  delight_rm "$DELIGHT_RUNTIME_DIR/hotspot"
+  delight_module_default_uninstall
+}
+
+module_enable() {
+  delight_module_default_enable
+}
+
+module_disable() {
+  delight_module_default_disable
+}
+
+module_status() {
+  hotspot_status
+}
+
+module_doctor() {
+  local adapter uuid metered priority min_priority="" other other_priority
+  if ! delight_hw_bluetooth; then
+    echo "No Bluetooth adapter found"
+    return 2
+  fi
+  uuid=$(delight_config_get hotspot connection)
+  if [[ -z $uuid || -z $(delight_config_get hotspot phone.mac) ]]; then
+    echo "run: delight hotspot setup"
+    return 3
+  fi
+  if ! delight_has_cmd busctl; then
+    echo "missing nmcli, busctl, or bluetoothctl"
+    return 1
+  fi
+  adapter=$(hotspot_bt_adapter)
+  if [[ $(hotspot_bt_adapter_powered "$adapter" || true) != true ]]; then
+    echo "turn Bluetooth on"
+    return 3
+  fi
+  if ! delight_has_cmd nmcli || ! delight_has_cmd bluetoothctl; then
+    echo "missing nmcli, busctl, or bluetoothctl"
+    return 1
+  fi
+  if ! hotspot_nm_connection_exists "$uuid"; then
+    echo "configured NetworkManager connection is missing; rerun setup"
+    return 1
+  fi
+  metered=$(hotspot_nm_field "$uuid" connection.metered) || metered=""
+  if [[ $metered != yes ]]; then
+    echo "hotspot connection is not metered; rerun setup"
+    return 1
+  fi
+  priority=$(hotspot_nm_field "$uuid" connection.autoconnect-priority) || priority=0
+  while IFS= read -r other; do
+    [[ -n $other && $other != "$uuid" ]] || continue
+    other_priority=$(hotspot_nm_field "$other" connection.autoconnect-priority) || other_priority=0
+    [[ $other_priority =~ ^-?[0-9]+$ ]] || other_priority=0
+    if [[ -z $min_priority ]] || ((other_priority < min_priority)); then
+      min_priority=$other_priority
+    fi
+  done < <(hotspot_nm_connection_uuids)
+  [[ -n $min_priority ]] || min_priority=0
+  if [[ ! $priority =~ ^-?[0-9]+$ ]] || ((priority >= min_priority)); then
+    echo "hotspot connection priority is not below other saved connections; rerun setup"
+    return 1
+  fi
+  echo "ok"
+}
+
+module_open() {
+  delight_run "$DELIGHT_ROOT/bin/delight" ui summon delight.hotspot
+}
+
+hotspot_lock() {
+  if delight_has_cmd omarchy-system-lock; then
+    delight_run omarchy-system-lock
+  else
+    delight_run loginctl lock-session
+  fi
+}
+
+module_setup() {
+  local ssid="" mac="" no_enable=false match created=false phone_name state old_uuid uuid prev priority
+  while (($# > 0)); do
+    case "$1" in
+      --ssid)
+        (($# >= 2)) || delight_die "usage: delight hotspot setup [--ssid SSID] [--bt MAC] [--no-enable]" 64
+        ssid=$2
+        shift 2
+        ;;
+      --bt)
+        (($# >= 2)) || delight_die "usage: delight hotspot setup [--ssid SSID] [--bt MAC] [--no-enable]" 64
+        mac=$2
+        shift 2
+        ;;
+      --no-enable)
+        no_enable=true
+        shift
+        ;;
+      *) delight_die "unknown setup option: $1" 64 ;;
+    esac
+  done
+  if [[ -z $ssid && -z $mac && -t 0 ]] && delight_has_cmd gum; then
+    ssid=$(hotspot_candidates | jq -r '.ssids[]?.ssid' | gum choose --header "Choose phone hotspot") || true
+    mac=$(hotspot_candidates | jq -r '.devices[]? | select(.phone) | "\(.mac)\t\(.name)"' \
+      | gum choose --header "Choose phone" | cut -f1) || true
+  elif [[ -z $ssid || -z $mac ]]; then
+    if delight_has_cmd omarchy-shell; then
+      module_open
+      return 0
+    fi
+    delight_die "usage: delight hotspot setup --ssid SSID --bt MAC" 64
+  fi
+  [[ -n $ssid && -n $mac ]] || delight_die "choose a hotspot network and phone" 64
+  if ! delight_is_installed hotspot; then
+    delight_run "$0" install
+  fi
+  delight_has_cmd nmcli || delight_die "NetworkManager (nmcli) is not installed" 2
+  [[ $mac =~ ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$ ]] \
+    || delight_die "Bluetooth address must be XX:XX:XX:XX:XX:XX" 64
+  mac=${mac^^}
+  match=$(hotspot_nm_resolve_ssid "$ssid") || match=""
+  if [[ -z $match ]]; then
+    if [[ -t 0 ]]; then
+      hotspot_nm_create_interactive "$ssid" || delight_die "could not connect to $ssid" 1
+      match=$(hotspot_nm_resolve_ssid "$ssid") || match=""
+      [[ -n $match ]] || delight_die "no connection created for $ssid" 1
+      created=true
+    else
+      delight_die "no saved connection for $ssid; connect once: nmcli --ask device wifi connect \"$ssid\"" 3
+    fi
+  fi
+  uuid=$(jq -r .uuid <<<"$match")
+  state=$(delight_state_flag_get hotspot nm)
+  [[ -n $state ]] || state='{}'
+  old_uuid=$(jq -r '.uuid // empty' <<<"$state")
+  if [[ -n $old_uuid && $old_uuid != "$uuid" ]]; then
+    hotspot_nm_restore
+    state=""
+  fi
+  if [[ -n $state && $old_uuid == "$uuid" ]]; then
+    prev=$(jq -c .prev <<<"$state")
+    created=$(jq -r '.created // false' <<<"$state")
+  else
+    prev=$(hotspot_nm_previous "$uuid")
+  fi
+  priority=$(hotspot_nm_priority "$uuid")
+  phone_name=$(hotspot_bt_alias "$mac" || true)
+  [[ -n $phone_name ]] || phone_name=$mac
+  delight_state_flag_set hotspot nm "$(jq -cn --arg uuid "$uuid" --arg ssid "$ssid" --argjson created "$created" \
+    --argjson prev "$prev" '{uuid:$uuid,ssid:$ssid,created:$created,prev:$prev}')"
+  hotspot_nm_modify "$uuid" yes "$priority" yes || delight_die "could not configure hotspot connection" 1
+  delight_config_set hotspot ssid "$ssid"
+  delight_config_set hotspot connection "$uuid"
+  delight_config_set hotspot phone.mac "$mac"
+  delight_config_set hotspot phone.name "$phone_name"
+  if [[ $no_enable != true ]]; then
+    delight_run "$0" enable
+  fi
+  hotspot_publish
+  printf 'Instant Hotspot set up for %s (%s) on %s.\n' "$phone_name" "$ssid" "$uuid"
+}
+
+module_connect() {
+  local uuid name
+  uuid=$(delight_config_get hotspot connection)
+  [[ -n $uuid ]] || delight_die "hotspot is not set up; run: delight hotspot setup" 3
+  name=$(delight_config_get hotspot phone.name)
+  hotspot_nm_rescan "$(delight_config_get hotspot ssid)" || true
+  if ! hotspot_nm_up "$uuid"; then
+    delight_notify hotspot "Could not connect to $name's hotspot" "On iPhone, open Settings > Personal Hotspot on the phone and try again."
+    return 1
+  fi
+}
+
+module_devices() {
+  [[ ${1:-} == --json ]] || delight_die "usage: delight hotspot devices --json" 64
+  if [[ ${DELIGHT_HOTSPOT_COLLECTING_DEVICES:-} == 1 ]]; then
+    printf '[]\n'
+    return 0
+  fi
+  hotspot_device_json
+}
+
+module_candidates() {
+  [[ ${1:-} == --json ]] || delight_die "usage: delight hotspot candidates --json" 64
+  hotspot_candidates
+}
+
+module_watch() {
+  local once=false interval fast
+  if [[ ${1:-} == --once ]]; then
+    once=true
+  elif (($# > 0)); then
+    delight_die "usage: delight hotspot watch [--once]" 64
+  fi
+  while true; do
+    hotspot_watch_iteration
+    [[ $once == true ]] && return 0
+    if [[ -n $(jq -r '.pending // empty' "$(hotspot_proximity_file)" 2>/dev/null) ]]; then
+      fast=$(delight_config_get hotspot scan.fastInterval)
+      sleep "$fast"
+    else
+      interval=$(delight_config_get hotspot scan.interval)
+      sleep "$interval"
+    fi
+  done
+}
+
+module_trace() {
+  local operation="${1:-}" file="${2:-}" duration=0 now start rssi connected state="" next from to smooth params
+  shift || true
+  case "$operation" in
+    record)
+      [[ -n $file ]] || delight_die "usage: delight hotspot trace record <file> [--duration S]" 64
+      shift || true
+      if [[ ${1:-} == --duration && -n ${2:-} ]]; then
+        duration=$2
+      fi
+      start=$(date +%s)
+      while true; do
+        now=$(date +%s)
+        rssi=$(hotspot_bt_read_rssi "$(delight_config_get hotspot phone.mac)" "$(hotspot_bt_adapter)" || true)
+        connected=$(hotspot_bt_connected "$(delight_config_get hotspot phone.mac)" "$(hotspot_bt_adapter)" && echo 1 || echo 0)
+        if [[ -z $rssi ]]; then
+          rssi=-
+        fi
+        delight_run tee -a "$file" <<<"$now"$'\t'"$rssi"$'\t'"$connected"
+        if ((duration > 0 && now - start >= duration)); then
+          return 0
+        fi
+        sleep 1
+      done
+      ;;
+    replay)
+      [[ -n $file ]] || delight_die "usage: delight hotspot trace replay <file>" 64
+      params=$(hotspot_prox_params)
+      while IFS=$'\t' read -r now rssi connected; do
+        [[ -n $now && $now != \#* ]] || continue
+        if [[ $rssi == - ]]; then
+          rssi=""
+        fi
+        next=$(hotspot_prox_step "$state" "$now" "$rssi" "$connected" "$params")
+        if [[ $(jq -r .changed <<<"$next") == true ]]; then
+          from=$(jq -r .from <<<"$next")
+          to=$(jq -r .presence <<<"$next")
+          smooth=$(jq -r .smoothed <<<"$next")
+          printf '%s\t%s\t%s\t%s\n' "$now" "$from" "$to" "$smooth"
+        fi
+        state=$next
+      done <"$file"
+      ;;
+    *) delight_die "usage: delight hotspot trace record|replay <file>" 64 ;;
+  esac
+}
+
+if [[ ${1:-} == lock-now ]]; then
+  shift
+  hotspot_lock "$@"
+else
+  delight_module_main "$@"
+fi
