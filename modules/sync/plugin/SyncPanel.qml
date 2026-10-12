@@ -168,14 +168,14 @@ Item {
         spacing: Tokens.padding
 
         Rectangle {
-          width: 148
-          height: 148
+          width: Tokens.space(148)
+          height: Tokens.space(148)
           radius: Tokens.radiusSmall
           color: "white"
 
           Image {
             anchors.fill: parent
-            anchors.margins: 6
+            anchors.margins: Tokens.spacingSmall
             source: root.qr !== "" ? "file://" + root.qr : ""
             cache: false
             smooth: false

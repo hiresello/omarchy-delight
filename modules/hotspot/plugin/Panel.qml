@@ -98,7 +98,7 @@ Item {
     signal clicked()
 
     width: parent ? parent.width : 0
-    height: 40
+    height: Tokens.controlHeight + Tokens.padding
     radius: Tokens.radiusSmall
     color: selected ? Qt.rgba(Tokens.accent.r, Tokens.accent.g, Tokens.accent.b, 0.22) : area.containsMouse ? Tokens.surfaceRaised : Tokens.surface
     border.color: selected ? Tokens.accent : Tokens.border
@@ -218,7 +218,7 @@ Item {
 
       Column {
         width: parent.width
-        spacing: 4
+        spacing: Tokens.spacingXs
 
         Repeater {
           model: root.ssids.slice(0, 6)
@@ -252,7 +252,7 @@ Item {
 
       Column {
         width: parent.width
-        spacing: 4
+        spacing: Tokens.spacingXs
 
         Repeater {
           model: root.devices.slice(0, 6)

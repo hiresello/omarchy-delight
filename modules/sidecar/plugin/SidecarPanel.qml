@@ -273,12 +273,12 @@ Item {
           Column {
             id: qrColumn
             required property var modelData
-            spacing: 4
+            spacing: Tokens.spacingXs
             visible: modelData.png !== ""
 
             Image {
-              width: 112
-              height: 112
+              width: Tokens.space(112)
+              height: Tokens.space(112)
               smooth: false
               source: qrColumn.modelData.png ? "file://" + qrColumn.modelData.png : ""
             }
@@ -293,8 +293,8 @@ Item {
         spacing: Tokens.spacing
 
         Rectangle {
-          width: 96
-          height: 32
+          width: Tokens.space(96)
+          height: Tokens.badgeSize
           radius: Tokens.radiusSmall
           color: Tokens.surface
           border.color: pinInput.activeFocus ? Tokens.accent : Tokens.border
@@ -337,8 +337,8 @@ Item {
 
       Image {
         visible: root.viewOnly && source !== ""
-        width: 112
-        height: 112
+        width: Tokens.space(112)
+        height: Tokens.space(112)
         smooth: false
         source: (root.info.qr || {}).deskreen ? "file://" + root.info.qr.deskreen : ""
       }

@@ -189,8 +189,8 @@ Item {
           spacing: Tokens.padding
 
           Rectangle {
-            width: 56
-            height: 56
+            width: Tokens.tileHeight
+            height: Tokens.tileHeight
             radius: Tokens.radiusSmall
             color: Tokens.surfaceRaised
             clip: true
@@ -288,7 +288,7 @@ Item {
               readonly property bool selected: root.selectedIndex === target.index
 
               width: (grid.width - Tokens.spacing * (grid.columns - 1)) / grid.columns
-              height: 104
+              height: Tokens.space(104)
               radius: Tokens.radius
               color: target.selected || area.containsMouse ? Tokens.surface : "transparent"
 
@@ -297,8 +297,8 @@ Item {
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.top: parent.top
                 anchors.topMargin: Tokens.spacing
-                width: 52
-                height: 52
+                width: Tokens.space(52)
+                height: Tokens.space(52)
                 radius: width / 2
                 color: target.selected ? Tokens.accent : Tokens.surfaceRaised
                 border.color: target.selected ? Tokens.accent : Tokens.border

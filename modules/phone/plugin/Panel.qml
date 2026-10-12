@@ -316,8 +316,8 @@ Item {
             source: root.pairInfo.qr ? "file://" + root.pairInfo.qr : ""
             sourceSize.width: 144
             sourceSize.height: 144
-            width: 144
-            height: 144
+            width: Tokens.space(144)
+            height: Tokens.space(144)
             fillMode: Image.PreserveAspectFit
           }
 

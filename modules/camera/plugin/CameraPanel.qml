@@ -150,7 +150,7 @@ Item {
 
         Rectangle {
           width: parent.width - saveButton.implicitWidth - parent.spacing
-          height: 36
+          height: Tokens.controlHeight + Tokens.spacing
           radius: Tokens.radiusSmall
           color: Tokens.surface
           border.color: Tokens.border

@@ -88,7 +88,7 @@ from `Tokens`.
 
 | Component | Use it for | Key API |
 | --- | --- | --- |
-| `Tokens` (singleton) | Every color, size, font and duration | `foreground` `background` `accent` `urgent` `muted` `surface*` `border` `divider` `focusRing` `accentInk` `success` `warning`; `fontFamily` `fontSize*` `iconSize*`; `radius*` `spacing*` `padding*` `sheetWidth` `tileHeight` `rowHeight` `controlHeight`; `animationFast/Normal/Slow` `easing*` `reduceMotion` |
+| `Tokens` (singleton) | Every color, size, font and duration | `foreground` `background` `accent` `urgent` `muted` `surface*` `border` `divider` `focusRing` `accentInk` `success` `warning`; `fontFamily` `fontSize*` `iconSize*`; `radius*` `spacing*` `padding*` `sheetWidth` `tileHeight` `space(px)` `rowHeight` `controlHeight`; `animationFast/Normal/Slow` `easing*` `reduceMotion` |
 | `Tile` | A feature at a glance (Control Center) | `icon` `title` `subtitle` `status` `reason` `toggleable` `compact` `hasDetail` `detailLabel`; `toggled()` `detailRequested()` `explainRequested()` |
 | `Sheet` | The card your rich UI lives in, with header and close | `title` `subtitle` `icon` `showClose` `closeOnEscape` `headerActions`; `closeRequested()`; children go in the body |
 | `SheetWindow` | A centered modal `Sheet` on its own layer with scrim and Esc | `shown` `title` `subtitle` `icon` `sheetWidth` `dismissOnScrim` `sheet`; `closeRequested()` |

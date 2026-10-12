@@ -232,7 +232,7 @@ Item {
             id: roleChip
             required property var modelData
             width: roleLabel.implicitWidth + Tokens.padding * 2
-            height: 28
+            height: Tokens.controlHeight
             radius: Tokens.radiusSmall
             color: root.role === roleChip.modelData.id ? Tokens.accent : Tokens.surface
             border.color: Tokens.border
@@ -278,7 +278,7 @@ Item {
             id: backendChip
             required property var modelData
             width: backendLabel.implicitWidth + Tokens.padding * 2
-            height: 28
+            height: Tokens.controlHeight
             radius: Tokens.radiusSmall
             color: root.backend === backendChip.modelData.id ? Tokens.accent : Tokens.surface
             border.color: Tokens.border
@@ -304,8 +304,8 @@ Item {
       // Screen arrangement: this computer in the middle, four edge zones.
       Item {
         id: arrangeArea
-        width: 320
-        height: 200
+        width: Tokens.space(320)
+        height: Tokens.space(200)
         anchors.horizontalCenter: parent.horizontalCenter
 
         Repeater {
@@ -336,8 +336,8 @@ Item {
 
         Rectangle {
           anchors.centerIn: parent
-          width: 120
-          height: 72
+          width: Tokens.space(120)
+          height: Tokens.space(72)
           radius: Tokens.radiusSmall
           color: Tokens.surface
           border.color: Tokens.accent
@@ -356,7 +356,7 @@ Item {
       // Peer chips: drag to an edge, click remove to delete.
       Column {
         width: parent.width
-        spacing: 4
+        spacing: Tokens.spacingXs
 
         Repeater {
           model: root.peers
@@ -365,12 +365,12 @@ Item {
             id: chipRow
             required property var modelData
             width: parent ? parent.width : 0
-            height: 32
+            height: Tokens.badgeSize
 
             Rectangle {
               id: chip
-              width: chipLabel.implicitWidth + Tokens.padding * 2 + 24
-              height: 26
+              width: chipLabel.implicitWidth + Tokens.padding * 2 + Tokens.space(24)
+              height: Tokens.controlHeight
               radius: Tokens.radiusSmall
               color: Tokens.surfaceRaised
               border.color: Tokens.border
@@ -380,9 +380,9 @@ Item {
                 anchors.left: parent.left
                 anchors.leftMargin: 8
                 anchors.verticalCenter: parent.verticalCenter
-                width: 8
-                height: 8
-                radius: 4
+                width: Tokens.space(8)
+                height: width
+                radius: width / 2
                 color: root.deviceConnected(chipRow.modelData.name) ? Tokens.accent : Tokens.muted
               }
 
@@ -435,8 +435,8 @@ Item {
         spacing: Tokens.spacing
 
         Rectangle {
-          width: 120
-          height: 28
+          width: Tokens.space(120)
+          height: Tokens.controlHeight
           radius: Tokens.radiusSmall
           color: Tokens.surface
           border.color: Tokens.border
@@ -444,7 +444,7 @@ Item {
           TextInput {
             id: nameInput
             anchors.fill: parent
-            anchors.margins: 6
+            anchors.margins: Tokens.spacingSmall
             color: Tokens.foreground
             font.family: Tokens.fontFamily
             font.pixelSize: Tokens.fontSizeSmall
@@ -462,8 +462,8 @@ Item {
         }
 
         Rectangle {
-          width: 160
-          height: 28
+          width: Tokens.space(160)
+          height: Tokens.controlHeight
           radius: Tokens.radiusSmall
           color: Tokens.surface
           border.color: Tokens.border
@@ -471,7 +471,7 @@ Item {
           TextInput {
             id: hostInput
             anchors.fill: parent
-            anchors.margins: 6
+            anchors.margins: Tokens.spacingSmall
             color: Tokens.foreground
             font.family: Tokens.fontFamily
             font.pixelSize: Tokens.fontSizeSmall
@@ -490,7 +490,7 @@ Item {
 
         Rectangle {
           width: addLabel.implicitWidth + Tokens.padding * 2
-          height: 28
+          height: Tokens.controlHeight
           radius: Tokens.radiusSmall
           color: Tokens.surface
           border.color: Tokens.border
@@ -519,7 +519,7 @@ Item {
       // TLS fingerprints.
       Column {
         width: parent.width
-        spacing: 4
+        spacing: Tokens.spacingXs
 
         Text {
           text: "Local fingerprint: " + (root.fingerprint !== "" ? root.fingerprint : "none yet")
@@ -554,15 +554,15 @@ Item {
             }
 
             Rectangle {
-              width: 220
-              height: 24
+              width: Tokens.space(220)
+              height: Tokens.controlHeight
               radius: Tokens.radiusSmall
               color: Tokens.surface
               border.color: Tokens.border
 
               TextInput {
                 anchors.fill: parent
-                anchors.margins: 4
+                anchors.margins: Tokens.spacingXs
                 text: fpRow.modelData.fingerprint || ""
                 color: Tokens.foreground
                 font.family: Tokens.fontFamily
@@ -586,7 +586,7 @@ Item {
       // Apply.
       Rectangle {
         width: applyLabel.implicitWidth + Tokens.padding * 2
-        height: 30
+        height: Tokens.controlHeight
         radius: Tokens.radiusSmall
         color: Tokens.accent
         anchors.right: parent.right

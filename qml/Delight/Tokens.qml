@@ -161,6 +161,8 @@ QtObject {
   readonly property int focusWidth: 2
 
   // ---- spacing, on a 4 px grid (Style.space follows `[spacing] scale`)
+  // Scales a design-px size with Omarchy's UI scale, for one-off geometry.
+  function space(px) { return Style.space(px) }
   readonly property int spacingXs: Style.space(4)
   readonly property int spacingSmall: Style.space(6)
   readonly property int spacing: Style.space(8)
