@@ -1,0 +1,5 @@
+#!/bin/bash
+
+printf 'omarchy-brightness-display' >>"$DELIGHT_STUB_LOG"
+printf ' %q' "$@" >>"$DELIGHT_STUB_LOG"
+printf '\n' >>"$DELIGHT_STUB_LOG"

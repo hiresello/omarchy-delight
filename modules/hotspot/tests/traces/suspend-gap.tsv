@@ -1,0 +1,11 @@
+# synthetic: suspend gap must restart the pending-away dwell after resume
+0	-60	0
+10	-60	0
+20	-90	0
+40	-90	0
+60	-90	0
+80	-90	0
+3600	-	0
+3710	-	0
+3720	-	0
+3740	-	0

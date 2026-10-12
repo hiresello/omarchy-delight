@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "delight.hotspot",
+  "name": "Delight Instant Hotspot",
+  "version": "0.1.0",
+  "description": "Pick your phone's hotspot and Bluetooth device for Instant Hotspot.",
+  "kinds": [
+    "panel"
+  ],
+  "entryPoints": {
+    "panel": "Panel.qml"
+  }
+}
