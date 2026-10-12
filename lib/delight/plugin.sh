@@ -14,6 +14,14 @@ delight_plugin_stage() {
   cp -rL -- "$DELIGHT_ROOT/qml/Delight" "$dest/Delight"
 }
 
+# A running shell only knows the plugins it has scanned: enabling a new one
+# fails and a removed one stays listed until it rescans.
+delight_plugin_rescan() {
+  if ! delight_dry && delight_has_cmd omarchy-shell; then
+    omarchy-shell shell rescanPlugins >/dev/null 2>&1 || true
+  fi
+}
+
 delight_plugin_id() {
   jq -r '.id' "$1/manifest.json"
 }
@@ -39,6 +47,7 @@ delight_plugin_install() {
   fi
   delight_state_add "$owner" plugins "$(jq -cn --arg p "$pid" '$p')"
   if delight_has_cmd omarchy; then
+    delight_plugin_rescan
     if ! omarchy plugin list 2>/dev/null | grep -Eq "^${pid}[[:space:]].*enabled"; then
       delight_run_quiet omarchy plugin enable "$pid" || delight_warn "could not enable plugin $pid"
     fi
@@ -48,7 +57,7 @@ delight_plugin_install() {
 }
 
 delight_plugin_remove_all() {
-  local owner="$1" entry pid
+  local owner="$1" entry pid removed=0
   while IFS= read -r entry; do
     [[ -n $entry ]] || continue
     pid=$(jq -r '.' <<<"$entry")
@@ -57,5 +66,9 @@ delight_plugin_remove_all() {
     fi
     delight_rm "$DELIGHT_PLUGIN_DIR/$pid"
     delight_state_del "$owner" plugins "$entry"
+    removed=1
   done < <(delight_state_list "$owner" plugins)
+  if ((removed)); then
+    delight_plugin_rescan
+  fi
 }

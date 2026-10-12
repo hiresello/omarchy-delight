@@ -6,7 +6,7 @@ set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
 
 {
-  find . -path ./.git -prune -o -type f \( -name '*.sh' -o -path './bin/*' -o -path '*/modules/*/bin/*' -o -path './templates/module/bin/*' -o -path './tests/contract/*' -o -name run -o -name _stub \) -print
+  find . -path ./.git -prune -o -type f \( -name '*.sh' -o -path './bin/*' -o -path '*/modules/*/bin/*' -o -path './templates/module/bin/*' -path './vm/*' -o -path './tests/contract/*' -o -name run -o -name _stub \) -print
   echo ./install.sh
   echo ./uninstall.sh
 } | sed 's|^\./||' | sort -u | while IFS= read -r f; do
