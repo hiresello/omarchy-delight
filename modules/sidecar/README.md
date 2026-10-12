@@ -9,7 +9,7 @@ input included. Deskreen is an optional, view-only fallback.
 ## Quick start
 
 ```bash
-delight sidecar install          # Sunshine (via omarchy-install-service-sunshine when available), qrencode, unit, panel
+delight sidecar install          # Sunshine, qrencode, unit, panel
 delight sidecar start            # or click the Sidecar tile in the Control Center
 delight sidecar open             # pairing + arrangement panel
 delight sidecar stop
@@ -69,10 +69,12 @@ A custom mode lives under `modules.sidecar.custom`:
   from Sunshine's CSRF check.
 - **Install / uninstall.** If Sunshine is already installed, Delight installs
   nothing for it, opens no ports and writes no credentials, and uninstall
-  leaves it exactly as it was. Otherwise it runs
-  `omarchy-install-service-sunshine` (and `omarchy-remove-service-sunshine` on
-  uninstall), or falls back to `delight_pkg_add sunshine` plus the same Moonlight
-  ports via `delight_ufw_allow` (private LANs + tailscale0). Only for a Sunshine
+  leaves it exactly as it was. Otherwise it runs `delight_pkg_add sunshine` and
+  opens the Moonlight ports via `delight_ufw_allow` (private LANs +
+  tailscale0), so uninstall removes both. It doesn't use
+  `omarchy-install-service-sunshine`: on Omarchy 4.0.4 that script fails after
+  installing the package, and Delight can't undo its firewall, autostart and
+  web app changes. Only for a Sunshine
   Delight installed does it create a web UI login (`sunshine --creds delight <random>`).
 - **Deskreen** (`install --deskreen`, `set backend deskreen`) runs Deskreen
   instead of Sunshine; the panel shows `http://<lan-ip>:3131` and a QR code and
