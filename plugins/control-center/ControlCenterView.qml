@@ -170,34 +170,20 @@ FocusScope {
         leftPadding: Tokens.spacingXs
       }
 
-      Flickable {
-        id: strip
+      // Wraps instead of scrolling so every device stays visible and reachable.
+      Flow {
         width: parent.width
-        height: deviceRow.height + Tokens.focusWidth * 4
-        contentWidth: deviceRow.width + Tokens.focusWidth * 4
-        clip: true
-        flickableDirection: Flickable.HorizontalFlick
-        boundsBehavior: Flickable.StopAtBounds
+        spacing: Tokens.spacingSmall
+        padding: Tokens.focusWidth * 2
 
-        Row {
-          id: deviceRow
-          x: Tokens.focusWidth * 2
-          y: Tokens.focusWidth * 2
-          spacing: Tokens.spacingSmall
-
-          Repeater {
-            id: deviceRepeater
-            model: root.devices
-            delegate: DeviceRow {
-              required property var modelData
-              device: modelData
-              orientation: "chip"
-              onActivated: root.deviceActivated(modelData)
-              onActiveFocusChanged: if (activeFocus) {
-                if (x + width > strip.contentX + strip.width) strip.contentX = x + width - strip.width + Tokens.focusWidth * 4
-                else if (x < strip.contentX) strip.contentX = x
-              }
-            }
+        Repeater {
+          id: deviceRepeater
+          model: root.devices
+          delegate: DeviceRow {
+            required property var modelData
+            device: modelData
+            orientation: "chip"
+            onActivated: root.deviceActivated(modelData)
           }
         }
       }

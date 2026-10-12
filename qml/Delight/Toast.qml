@@ -47,7 +47,8 @@ Item {
     height: Tokens.controlHeight + 4
     radius: height / 2
     y: root.shown ? 0 : Tokens.spacing
-    color: Tokens.surfaceRaised
+    // Near-opaque so it stays legible over whatever it floats above.
+    color: Tokens.alpha(Tokens.glassBase, 0.97)
     border.width: Tokens.borderWidth
     border.color: root.kind === "error" ? Tokens.urgent : Tokens.border
 

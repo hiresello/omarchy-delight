@@ -83,7 +83,7 @@ Item {
       radius: width / 2
       y: 2
       x: root.checked ? track.width - width - 2 : 2
-      color: root.checked ? Tokens.onAccent : Tokens.foreground
+      color: root.checked ? Tokens.accentInk : Tokens.foreground
 
       Behavior on x { NumberAnimation { duration: Tokens.animationNormal; easing.type: Tokens.easing } }
 

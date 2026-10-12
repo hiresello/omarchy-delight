@@ -30,13 +30,13 @@ QtObject {
     return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
   }
   function luminance(c) {
-    return 0.2126 * linear(c.r) + 0.7152 * linear(c.g) + 0.0722 * linear(c.b)
+    return 0.2126 * root.linear(c.r) + 0.7152 * root.linear(c.g) + 0.0722 * root.linear(c.b)
   }
 
   // White unless dark text has clearly more contrast (white wins near ties,
   // as on Apple's blue).
   function onColor(fill) {
-    let l = luminance(fill)
+    let l = root.luminance(fill)
     return (l + 0.05) / 0.05 > 1.3 * (1.05 / (l + 0.05)) ? Qt.rgba(0.07, 0.07, 0.08, 1) : Qt.rgba(1, 1, 1, 1)
   }
 
@@ -104,8 +104,9 @@ QtObject {
   readonly property color divider: alpha(foreground, 0.07)
   readonly property color focusRing: accent
   readonly property color scrim: Qt.rgba(0, 0, 0, glassy ? 0.25 : 0.45)
-  readonly property color onAccent: onColor(accent)
-  readonly property color onUrgent: onColor(urgent)
+  // Not `onAccent`: QML reserves `on<Upper>` names for signal handlers.
+  readonly property color accentInk: onColor(accent)
+  readonly property color urgentInk: onColor(urgent)
   readonly property color success: mix(accent, "#4cc38a", 0.6)
   readonly property color warning: mix(urgent, "#e5a50a", 0.6)
 
@@ -164,7 +165,7 @@ QtObject {
   readonly property int spacingSmall: Style.space(6)
   readonly property int spacing: Style.space(8)
   readonly property int spacingLarge: Style.space(12)
-  readonly property int sheetWidth: Style.space(400)
+  readonly property int sheetWidth: Style.space(416)
   readonly property int tileHeight: Style.space(56)
   readonly property int rowHeight: Style.space(48)
   readonly property int badgeSize: Style.space(32)
@@ -198,8 +199,8 @@ QtObject {
 
   function stateTextColor(state) {
     switch (state) {
-    case "on": return onAccent
-    case "error": return onUrgent
+    case "on": return accentInk
+    case "error": return urgentInk
     case "unsupported": return muted
     default: return foreground
     }

@@ -114,7 +114,7 @@ Item {
         anchors.centerIn: parent
         glyph: Tokens.kindIcon(root.kind)
         size: Tokens.iconSizeSmall
-        color: root.connected ? Tokens.onAccent : Tokens.foreground
+        color: root.connected ? Tokens.accentInk : Tokens.foreground
       }
     }
 

@@ -37,7 +37,7 @@ Item {
     ? reason : (subtitle !== "" ? subtitle : Tokens.stateLabel(status))
 
   implicitWidth: compact ? Tokens.sheetWidth : Math.round(Tokens.sheetWidth / 2)
-  implicitHeight: compact ? Math.max(Tokens.rowHeight, text.implicitHeight + Tokens.spacingLarge * 2) : Tokens.tileHeight
+  implicitHeight: compact ? Math.max(Tokens.rowHeight, labels.implicitHeight + Tokens.spacingLarge * 2) : Tokens.tileHeight
   activeFocusOnTab: true
 
   Accessible.role: toggleable ? Accessible.CheckBox : Accessible.Button
@@ -110,7 +110,7 @@ Item {
       anchors.centerIn: parent
       glyph: root.icon !== "" ? root.icon : "󰘔"
       size: root.compact ? Tokens.iconSizeSmall : Tokens.iconSize
-      color: root.active ? Tokens.onAccent : root.failed ? Tokens.onUrgent : Tokens.foreground
+      color: root.active ? Tokens.accentInk : root.failed ? Tokens.urgentInk : Tokens.foreground
     }
 
     ProgressRing {
@@ -123,7 +123,7 @@ Item {
   }
 
   Column {
-    id: text
+    id: labels
     anchors.left: badge.right
     anchors.leftMargin: root.compact ? Tokens.spacingLarge : Tokens.spacing + 2
     // Large tiles keep the full width for text; the chevron floats over it.

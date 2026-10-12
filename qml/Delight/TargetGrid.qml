@@ -88,7 +88,7 @@ FocusScope {
             anchors.centerIn: parent
             glyph: cell.modelData.icon || Tokens.kindIcon(cell.modelData.kind || "")
             size: Tokens.iconSizeLarge
-            color: cell.sending ? Tokens.onAccent : Tokens.foreground
+            color: cell.sending ? Tokens.accentInk : Tokens.foreground
           }
 
           ProgressRing {

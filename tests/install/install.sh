@@ -62,7 +62,7 @@ ok "hyprland.lua loads the generated file" grep -q 'pcall(dofile, os.getenv("HOM
 ok "generated hypr.lua exists" test -f "$HOME/.config/omarchy-delight/hypr.lua"
 ok "menu file still parses" jsonc_parse "$MENU"
 is "menu keeps the user's entry" "$(jsonc_parse "$MENU" | jq -r '.personal.label')" "Personal"
-is "menu has the Control Center entry" "$(jsonc_parse "$MENU" | jq -r '."delight.control-center".action')" "delight ui summon delight.control-center"
+is "menu has the Control Center entry" "$(jsonc_parse "$MENU" | jq -r '."delight.control-center".action')" "delight ui toggle delight.control-center"
 ok "theme hook installed and executable" test -x "$HOME/.config/omarchy/hooks/theme-set.d/50-omarchy-delight"
 ok "theme hook runs" "$HOME/.config/omarchy/hooks/theme-set.d/50-omarchy-delight" catppuccin
 

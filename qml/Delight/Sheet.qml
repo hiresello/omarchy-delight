@@ -96,7 +96,7 @@ Rectangle {
         Glyph {
           anchors.centerIn: parent
           glyph: root.icon
-          color: Tokens.onAccent
+          color: Tokens.accentInk
         }
       }
 

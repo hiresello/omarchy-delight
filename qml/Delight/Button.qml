@@ -36,8 +36,8 @@ Item {
     return Tokens.surfaceRaised
   }
   readonly property color ink: {
-    if (variant === "primary") return Tokens.onAccent
-    if (variant === "destructive") return Tokens.onUrgent
+    if (variant === "primary") return Tokens.accentInk
+    if (variant === "destructive") return Tokens.urgentInk
     return Tokens.foreground
   }
 
