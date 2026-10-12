@@ -42,7 +42,10 @@ A custom mode lives under `modules.sidecar.custom`:
   It applies the rule with `hyprctl eval 'hl.monitor({ output = "DELIGHT-SIDECAR", ... })'`
   *before* `hyprctl output create headless DELIGHT-SIDECAR`, so the output is
   born at the requested mode, then focuses the anchor again. Other monitors are
-  never touched. The same rule is written to
+  never touched. Hyprland lays out `auto`-positioned monitors (Omarchy's
+  catch-all rule) after explicit ones, so if an explicit tablet position would
+  shove one, Sidecar switches the tablet to `auto-center-right|left|up|down`
+  and lets Hyprland place it on that edge instead. The same rule is written to
   `$XDG_RUNTIME_DIR/omarchy-delight/sidecar/monitor.lua`, which this module's
   `hypr.lua` dofiles, so `hyprctl reload` does not snap the tablet back to
   Omarchy's catch-all rule. Nothing is written to `~/.config/hypr`.
@@ -82,7 +85,10 @@ A custom mode lives under `modules.sidecar.custom`:
 placement maths, Sunshine override rendering, pairing payloads and the
 install/start/stop/uninstall lifecycle against a stubbed `hyprctl`.
 `modules/sidecar/tests/live-hyprland.sh` runs the same start/stop against a
-real Hyprland when `HYPRLAND_INSTANCE_SIGNATURE` is set (skipped otherwise).
+real Hyprland when `HYPRLAND_INSTANCE_SIGNATURE` is set (skipped otherwise):
+DELIGHT-SIDECAR appears at `2388x1668@120` scale 2, every arrangement leaves the
+other monitors where they were, and `stop` removes it. Verified on Hyprland
+0.56.2 (Arch container, vkms output `Virtual-1`, seatd).
 
 ## Manual hardware script (iPad + Moonlight)
 

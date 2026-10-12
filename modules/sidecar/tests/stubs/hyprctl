@@ -22,6 +22,26 @@ update() {
   jq "$@" "$db" >"$tmp" && mv -f "$tmp" "$db"
 }
 
+# Mimics Hyprland's MonitorPositionController: explicit positions first, then
+# monitors with an "auto" placement (.auto) laid out around them in order.
+arrange() {
+  update '
+    def lw: .width / .scale; def lh: .height / .scale;
+    def half(a; b): ((a - b) / 2 | floor);
+    (.monitors | map(select(.auto == null))) as $ex
+    | (reduce (.monitors[] | select(.auto != null)) as $m ($ex;
+        . as $arr
+        | {r: ([$arr[] | .x + lw] + [0] | max), l: ([$arr[] | .x] + [0] | min),
+           d: ([$arr[] | .y + lh] + [0] | max), u: ([$arr[] | .y] + [0] | min)} as $o
+        | ($m | if .auto == "auto-center-up" then {x: ($o.l + half($o.r - $o.l; lw)), y: ($o.u - lh)}
+            elif .auto == "auto-center-down" then {x: ($o.l + half($o.r - $o.l; lw)), y: $o.d}
+            elif .auto == "auto-center-left" then {x: ($o.l - lw), y: ($o.u + half($o.d - $o.u; lh))}
+            elif .auto == "auto-center-right" then {x: $o.r, y: ($o.u + half($o.d - $o.u; lh))}
+            else {x: $o.r, y: 0} end) as $p
+        | . + [$m + $p])) as $all
+    | .monitors |= map(.name as $n | $all[] | select(.name == $n))'
+}
+
 field() {
   sed -nE "s/.*$1 = \"?([^\",}]+)\"?.*/\1/p" <<<"$2" | sed 's/ *$//'
 }
@@ -34,7 +54,7 @@ case "${1:-}" in
   version)
     if $json; then echo '{"version":"0.56.0","tag":"v0.56.0"}'; else echo "Hyprland 0.56.0"; fi
     ;;
-  monitors) jq '.monitors | map(. + {activeWorkspace: {name: "1"}})' "$db" ;;
+  monitors) jq '.monitors | map(del(.auto) + {activeWorkspace: {name: "1"}})' "$db" ;;
   workspaces) jq '.workspaces' "$db" ;;
   reload) echo ok ;;
   eval)
@@ -44,9 +64,12 @@ case "${1:-}" in
       update --arg o "$out" --arg m "$mode" --arg p "$pos" --arg s "$scale" '
         .rules[$o] = {mode: $m, position: $p, scale: ($s | tonumber)}
         | ($m | capture("(?<w>[0-9]+)x(?<h>[0-9]+)@(?<r>[0-9.]+)")) as $mm
-        | ($p | capture("(?<x>-?[0-9]+)x(?<y>-?[0-9]+)")) as $pp
-        | .monitors |= map(if .name == $o then . + {width: ($mm.w|tonumber), height: ($mm.h|tonumber),
-            refreshRate: ($mm.r|tonumber), x: ($pp.x|tonumber), y: ($pp.y|tonumber), scale: ($s|tonumber)} else . end)'
+        | .monitors |= map(if .name == $o then
+            (. + {width: ($mm.w|tonumber), height: ($mm.h|tonumber), refreshRate: ($mm.r|tonumber), scale: ($s|tonumber)})
+            | if ($p | startswith("auto")) then .auto = $p
+              else ($p | capture("(?<x>-?[0-9]+)x(?<y>-?[0-9]+)")) as $pp | del(.auto) + {x: ($pp.x|tonumber), y: ($pp.y|tonumber)} end
+          else . end)'
+      arrange
       echo ok
     else
       echo "eval: unsupported in stub"
@@ -78,12 +101,13 @@ case "${1:-}" in
         update --arg n "$name" '
           (.rules[$n] // {mode: "1920x1080@60", position: "auto", scale: 1}) as $r
           | ($r.mode | capture("(?<w>[0-9]+)x(?<h>[0-9]+)@(?<r>[0-9.]+)")) as $mm
-          | (if $r.position == "auto" then {x: ([.monitors[] | .x + (.width / .scale)] | max), y: 0}
+          | (if ($r.position | startswith("auto")) then {x: 0, y: 0, auto: $r.position}
              else ($r.position | capture("(?<x>-?[0-9]+)x(?<y>-?[0-9]+)") | {x: (.x|tonumber), y: (.y|tonumber)}) end) as $pp
           | ([.workspaces[].id] | max + 1) as $ws
           | .monitors += [{id: (.monitors | length), name: $n, width: ($mm.w|tonumber), height: ($mm.h|tonumber),
-              refreshRate: ($mm.r|tonumber), x: $pp.x, y: $pp.y, scale: $r.scale, transform: 0, focused: false}]
+              refreshRate: ($mm.r|tonumber), scale: $r.scale, transform: 0, focused: false} + $pp]
           | .workspaces += [{id: $ws, name: ($ws|tostring), monitor: $n}]'
+        arrange
         echo ok
         ;;
       remove | destroy)
@@ -94,6 +118,7 @@ case "${1:-}" in
         fi
         update --arg n "$name" '.monitors |= map(select(.name != $n))
           | .monitors[0].name as $first | .workspaces |= map(if .monitor == $n then .monitor = $first else . end)'
+        arrange
         echo ok
         ;;
     esac

@@ -56,6 +56,21 @@ sidecar_anchor() {
     | (($m | map(select(.focused)) | first) // ($m | first) // empty) | .name' <<<"$1"
 }
 
+# sidecar_auto_position <side>: Hyprland's auto placement for that edge of the layout.
+sidecar_auto_position() {
+  case "$1" in
+    left) echo auto-center-left ;;
+    above) echo auto-center-up ;;
+    below) echo auto-center-down ;;
+    *) echo auto-center-right ;;
+  esac
+}
+
+# sidecar_layout <monitors-json>: positions of every monitor except the tablet.
+sidecar_layout() {
+  jq -c --arg n "$SIDECAR_OUTPUT" '[.[] | select(.name != $n) | {name, x, y}] | sort_by(.name)' <<<"$1"
+}
+
 # sidecar_position <monitors-json> <anchor> <side> <mode-json>: "XxY" in layout
 # (logical) coordinates, flush against the anchor and centred on the shared edge.
 sidecar_position() {

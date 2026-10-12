@@ -37,6 +37,9 @@ not_ok "unknown side fails" sidecar_position "$mons" eDP-1 diagonal "$ipad"
 
 is "lua monitor rule" "$(sidecar_monitor_lua "$ipad" 1920x123)" \
   'hl.monitor({ output = "DELIGHT-SIDECAR", mode = "2388x1668@120", position = "1920x123", scale = 2 })'
+is "auto placement per side" "$(for s in right left above below; do sidecar_auto_position "$s"; done | paste -sd,)" \
+  "auto-center-right,auto-center-left,auto-center-up,auto-center-down"
+is "layout ignores the tablet" "$(sidecar_layout "$mons" | jq -c 'map(.name)')" '["DP-1","eDP-1"]'
 is "lua rule keeps fractional scale" "$(sidecar_monitor_lua "$(sidecar_mode android-1200p landscape null)" 0x0)" \
   'hl.monitor({ output = "DELIGHT-SIDECAR", mode = "1920x1200@60", position = "0x0", scale = 1.5 })'
 is "workspace move dispatcher" "$(sidecar_dispatch_move_workspace 3 eDP-1)" 'hl.dsp.workspace.move({ workspace = "3", monitor = "eDP-1" })'
@@ -131,6 +134,26 @@ not_ok "runtime rule removed" test -e "$XDG_RUNTIME_DIR/omarchy-delight/sidecar/
 is "status off after stop" "$("$BIN" status --json | jq -r .state)" "off"
 ok "stop is idempotent" "$BIN" stop
 
+# Omarchy's catch-all rule positions monitors "auto"; Hyprland lays those out
+# after explicit ones, so the tablet must not be given an explicit spot then.
+cp "$DELIGHT_STUB_STATE/hypr.json" "$SANDBOX/hypr.json.saved"
+jq '.monitors = [.monitors[0] | .auto = "auto"] | .workspaces |= map(.monitor = "eDP-1")' \
+  "$SANDBOX/hypr.json.saved" >"$DELIGHT_STUB_STATE/hypr.json"
+auto_before=$(others)
+ok "start next to an auto-positioned monitor" "$BIN" start
+is "auto monitor not shoved by an explicit tablet position" "$(others)" "$auto_before"
+is "tablet placed above by Hyprland" "$(sidecar_mon)" "[1920,1200,60,1.5,80,-800]"
+ok "falls back to auto placement" grep -q 'position = "auto-center-up"' "$XDG_RUNTIME_DIR/omarchy-delight/sidecar/monitor.lua"
+ok "arrange left while running" "$BIN" set arrangement left
+is "auto monitor still in place" "$(others)" "$auto_before"
+is "tablet left of the auto monitor" "$(sidecar_mon)" "[1920,1200,60,1.5,-1280,50]"
+ok "stop" "$BIN" stop
+is "auto monitor unchanged after stop" "$(others)" "$auto_before"
+not_ok "placement memo cleared" test -e "$XDG_RUNTIME_DIR/omarchy-delight/sidecar/placement"
+cp "$SANDBOX/hypr.json.saved" "$DELIGHT_STUB_STATE/hypr.json"
+ok "back to the right" "$BIN" set arrangement right
+ok "back to the iPad preset" "$BIN" set preset ipad-11
+
 rm -f "$DELIGHT_STUB_STATE/active-sunshine.service"
 touch "$DELIGHT_STUB_STATE/stray-sunshine"
 ok "toggle starts (stray sunshine)" "$BIN" toggle
@@ -160,7 +183,7 @@ is "hotkey file for hypr.lua" "$(cat "$HOME/.local/state/omarchy-delight/sidecar
 ok "clear hotkey" "$BIN" set hotkey ""
 not_ok "hotkey file removed" test -e "$HOME/.local/state/omarchy-delight/sidecar/hotkey"
 ok "deskreen backend" "$BIN" set backend deskreen
-is "deskreen labelled view-only" "$("$BIN" status --json | jq -r .subtitle)" "Android tablet, above (view-only)"
+is "deskreen labelled view-only" "$("$BIN" status --json | jq -r .subtitle)" "iPad Pro 11\", right (view-only)"
 ok "info --json" bash -c "'$BIN' info --json | jq -e '.config.backend == \"deskreen\" and (.deskreenUrl | startswith(\"http://\")) and (.presets | length) > 3'"
 ok "back to sunshine" "$BIN" set backend sunshine
 

@@ -16,13 +16,16 @@ fi
 
 BIN="$DELIGHT_TEST_REPO/modules/sidecar/bin/delight-sidecar"
 real_path=$PATH
+real_runtime=${XDG_RUNTIME_DIR:-/run/user/$UID}
 sandbox
 export HYPRLAND_INSTANCE_SIGNATURE=$sig
 # Stubs only for package/firewall/systemd side effects; hyprctl stays real.
 export PATH="$DELIGHT_TEST_REPO/modules/sidecar/tests/stubs:$DELIGHT_TEST_REPO/tests/stubs:$real_path"
 hyprctl_bin=$(PATH=$real_path command -v hyprctl)
 mkdir -p "$SANDBOX/bin"
-ln -s "$hyprctl_bin" "$SANDBOX/bin/hyprctl"
+# The sandbox moves XDG_RUNTIME_DIR; keep hyprctl pointed at the real socket.
+printf '#!/bin/bash\nXDG_RUNTIME_DIR=%q exec %q "$@"\n' "$real_runtime" "$hyprctl_bin" >"$SANDBOX/bin/hyprctl"
+chmod +x "$SANDBOX/bin/hyprctl"
 printf '#!/bin/bash\nexit 0\n' >"$SANDBOX/bin/sunshine"
 chmod +x "$SANDBOX/bin/sunshine"
 export PATH="$SANDBOX/bin:$PATH"
@@ -39,6 +42,11 @@ is "DELIGHT-SIDECAR at 2388x1668@120 scale 2" \
   "$(hyprctl monitors -j | jq -c '.[] | select(.name == "DELIGHT-SIDECAR") | [.width, .height, (.refreshRate | round), .scale]')" \
   "[2388,1668,120,2]"
 is "other monitors unchanged after start" "$(others)" "$before"
+for side in left above below right; do
+  ok "arrange $side" "$BIN" set arrangement "$side"
+  is "other monitors unchanged ($side)" "$(others)" "$before"
+done
+is "focused monitor kept" "$(hyprctl monitors -j | jq -r '.[] | select(.focused) | .name')" "$(jq -r '.[0].name' <<<"$before" | head -1)"
 ok "stop" "$BIN" stop
 is "DELIGHT-SIDECAR removed" "$(hyprctl monitors -j | jq '[.[] | select(.name == "DELIGHT-SIDECAR")] | length')" "0"
 is "other monitors unchanged after stop" "$(others)" "$before"

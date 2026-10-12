@@ -19,6 +19,7 @@ SIDECAR_RUN="$DELIGHT_RUNTIME_DIR/sidecar"
 SIDECAR_SESSION="$SIDECAR_RUN/session.json"
 SIDECAR_RULE="$SIDECAR_RUN/monitor.lua"
 SIDECAR_ARGS="$SIDECAR_RUN/sunshine.args"
+SIDECAR_PLACEMENT="$SIDECAR_RUN/placement"
 SIDECAR_CREDS="$DELIGHT_STATE_DIR/sidecar/sunshine-credentials"
 SIDECAR_HOTKEY="$DELIGHT_STATE_DIR/sidecar/hotkey"
 SIDECAR_SUNSHINE_STATE="${SIDECAR_SUNSHINE_STATE:-$HOME/.config/sunshine/sunshine_state.json}"
@@ -131,9 +132,20 @@ wait_for_mode() {
   return 1
 }
 
+# wait_for_layout <layout-json>: true once the other monitors are back there.
+wait_for_layout() {
+  local layout="$1" i
+  for ((i = 0; i < 10; i++)); do
+    [[ $(sidecar_layout "$(monitors_json)") == "$layout" ]] && return 0
+    sleep 0.1
+  done
+  return 1
+}
+
 display_up() {
-  local monitors anchor side mode position
+  local monitors anchor side mode position layout
   monitors=$(monitors_json)
+  layout=$(sidecar_layout "$monitors")
   anchor=$(session_get .anchor || true)
   if [[ -z $anchor ]] || ! jq -e --arg a "$anchor" 'any(.[]; .name == $a)' <<<"$monitors" >/dev/null; then
     anchor=$(sidecar_anchor "$monitors")
@@ -143,12 +155,21 @@ display_up() {
   sidecar_valid_side "$side" || side=right
   mode=$(current_mode) || delight_die "sidecar: unknown preset '$(cfg preset)'"
   position=$(sidecar_position "$monitors" "$anchor" "$side" "$mode") || delight_die "sidecar: could not place the display"
+  [[ $(cat -- "$SIDECAR_PLACEMENT" 2>/dev/null) == auto ]] && position=$(sidecar_auto_position "$side")
   # The rule goes in first so the output is born at the right mode.
   apply_rule "$mode" "$position"
   if ! jq -e --arg n "$SIDECAR_OUTPUT" 'any(.[]; .name == $n)' <<<"$monitors" >/dev/null; then
     hypr output create headless "$SIDECAR_OUTPUT"
   fi
   wait_for_mode "$mode" || true
+  # Hyprland lays out auto-positioned monitors after explicit ones, so an
+  # explicit tablet position can shove a monitor that uses "auto" (Omarchy's
+  # default). If that happened, let Hyprland place the tablet on that edge.
+  if ! delight_dry && [[ $position != auto-* ]] && ! wait_for_layout "$layout"; then
+    printf 'auto\n' | delight_write "$SIDECAR_PLACEMENT"
+    apply_rule "$mode" "$(sidecar_auto_position "$side")"
+    wait_for_layout "$layout" || delight_warn "sidecar: other monitors moved when the tablet was added"
+  fi
   hypr dispatch "$(sidecar_dispatch_focus_monitor "$anchor")" || true
   SIDECAR_ANCHOR=$anchor
 }
@@ -260,6 +281,7 @@ sidecar_stop() {
   sunshine_restore "$prior"
   delight_rm "$SIDECAR_RULE"
   delight_rm "$SIDECAR_ARGS"
+  delight_rm "$SIDECAR_PLACEMENT"
   delight_rm "$SIDECAR_SESSION"
 }
 
