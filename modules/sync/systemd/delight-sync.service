@@ -1,0 +1,12 @@
+[Unit]
+Description=Omarchy Delight: Syncthing status and notifications
+PartOf=delight.target
+After=syncthing.service
+
+[Service]
+ExecStart=%h/.local/bin/delight sync watch
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=delight.target

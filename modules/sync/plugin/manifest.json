@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "delight.sync",
+  "name": "Delight Sync",
+  "version": "0.1.0",
+  "description": "Pair devices with Syncthing by QR code.",
+  "kinds": ["panel"],
+  "entryPoints": { "panel": "SyncPanel.qml" }
+}

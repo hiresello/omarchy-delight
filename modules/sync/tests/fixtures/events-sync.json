@@ -1,0 +1,347 @@
+[
+  {
+    "id": 33,
+    "globalID": 33,
+    "time": "2026-10-12T09:14:19.815957818Z",
+    "type": "StateChanged",
+    "data": {
+      "duration": 10.815951222,
+      "folder": "default",
+      "from": "idle",
+      "to": "scan-waiting"
+    }
+  },
+  {
+    "id": 34,
+    "globalID": 34,
+    "time": "2026-10-12T09:14:19.815974764Z",
+    "type": "StateChanged",
+    "data": {
+      "duration": 0.815972791,
+      "folder": "default",
+      "from": "scan-waiting",
+      "to": "scanning"
+    }
+  },
+  {
+    "id": 35,
+    "globalID": 35,
+    "time": "2026-10-12T09:14:20.020740501Z",
+    "type": "FolderScanProgress",
+    "data": {
+      "current": 209715206,
+      "folder": "default",
+      "rate": 0,
+      "total": 209715207
+    }
+  },
+  {
+    "id": 36,
+    "globalID": 36,
+    "time": "2026-10-12T09:14:20.02714909Z",
+    "type": "LocalIndexUpdated",
+    "data": {
+      "filenames": [
+        "a.txt",
+        "big.bin"
+      ],
+      "folder": "default",
+      "items": 2,
+      "sequence": 2,
+      "version": 2
+    }
+  },
+  {
+    "id": 37,
+    "globalID": 39,
+    "time": "2026-10-12T09:14:20.027762808Z",
+    "type": "StateChanged",
+    "data": {
+      "duration": 1.027762118,
+      "folder": "default",
+      "from": "scanning",
+      "to": "idle"
+    }
+  },
+  {
+    "id": 38,
+    "globalID": 40,
+    "time": "2026-10-12T09:14:22.021820069Z",
+    "type": "FolderSummary",
+    "data": {
+      "folder": "default",
+      "summary": {
+        "errors": 0,
+        "pullErrors": 0,
+        "invalid": "",
+        "globalFiles": 2,
+        "globalDirectories": 0,
+        "globalSymlinks": 0,
+        "globalDeleted": 0,
+        "globalBytes": 209715206,
+        "globalTotalItems": 2,
+        "localFiles": 2,
+        "localDirectories": 0,
+        "localSymlinks": 0,
+        "localDeleted": 0,
+        "localBytes": 209715206,
+        "localTotalItems": 2,
+        "needFiles": 0,
+        "needDirectories": 0,
+        "needSymlinks": 0,
+        "needDeletes": 0,
+        "needBytes": 0,
+        "needTotalItems": 0,
+        "receiveOnlyChangedFiles": 0,
+        "receiveOnlyChangedDirectories": 0,
+        "receiveOnlyChangedSymlinks": 0,
+        "receiveOnlyChangedDeletes": 0,
+        "receiveOnlyChangedBytes": 0,
+        "receiveOnlyTotalItems": 0,
+        "inSyncFiles": 2,
+        "inSyncBytes": 209715206,
+        "state": "idle",
+        "stateChanged": "2026-10-12T09:14:20Z",
+        "error": "",
+        "version": 2,
+        "sequence": 2,
+        "remoteSequence": {
+          "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC": 0
+        },
+        "ignorePatterns": false,
+        "watchError": ""
+      }
+    }
+  },
+  {
+    "id": 39,
+    "globalID": 41,
+    "time": "2026-10-12T09:14:22.022072453Z",
+    "type": "FolderCompletion",
+    "data": {
+      "completion": 0,
+      "device": "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC",
+      "folder": "default",
+      "globalBytes": 209715206,
+      "globalItems": 2,
+      "needBytes": 209715206,
+      "needDeletes": 0,
+      "needItems": 2,
+      "remoteState": "valid",
+      "sequence": 0
+    }
+  },
+  {
+    "id": 40,
+    "globalID": 42,
+    "time": "2026-10-12T09:14:22.036335278Z",
+    "type": "RemoteIndexUpdated",
+    "data": {
+      "device": "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC",
+      "folder": "default",
+      "items": 2,
+      "sequence": 4,
+      "version": 4
+    }
+  },
+  {
+    "id": 41,
+    "globalID": 43,
+    "time": "2026-10-12T09:14:23.121692841Z",
+    "type": "DeviceConnected",
+    "data": {
+      "addr": "127.0.0.1:58804",
+      "clientName": "syncthing",
+      "clientVersion": "v2.1.6",
+      "deviceName": "422465fd87ff",
+      "id": "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC",
+      "type": "tcp-server"
+    }
+  },
+  {
+    "id": 42,
+    "globalID": 44,
+    "time": "2026-10-12T09:14:24.027474463Z",
+    "type": "FolderSummary",
+    "data": {
+      "folder": "default",
+      "summary": {
+        "errors": 0,
+        "pullErrors": 0,
+        "invalid": "",
+        "globalFiles": 2,
+        "globalDirectories": 0,
+        "globalSymlinks": 0,
+        "globalDeleted": 0,
+        "globalBytes": 209715206,
+        "globalTotalItems": 2,
+        "localFiles": 2,
+        "localDirectories": 0,
+        "localSymlinks": 0,
+        "localDeleted": 0,
+        "localBytes": 209715206,
+        "localTotalItems": 2,
+        "needFiles": 0,
+        "needDirectories": 0,
+        "needSymlinks": 0,
+        "needDeletes": 0,
+        "needBytes": 0,
+        "needTotalItems": 0,
+        "receiveOnlyChangedFiles": 0,
+        "receiveOnlyChangedDirectories": 0,
+        "receiveOnlyChangedSymlinks": 0,
+        "receiveOnlyChangedDeletes": 0,
+        "receiveOnlyChangedBytes": 0,
+        "receiveOnlyTotalItems": 0,
+        "inSyncFiles": 2,
+        "inSyncBytes": 209715206,
+        "state": "idle",
+        "stateChanged": "2026-10-12T09:14:20Z",
+        "error": "",
+        "version": 2,
+        "sequence": 2,
+        "remoteSequence": {
+          "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC": 4
+        },
+        "ignorePatterns": false,
+        "watchError": ""
+      }
+    }
+  },
+  {
+    "id": 43,
+    "globalID": 45,
+    "time": "2026-10-12T09:14:24.027665027Z",
+    "type": "FolderCompletion",
+    "data": {
+      "completion": 100,
+      "device": "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC",
+      "folder": "default",
+      "globalBytes": 209715206,
+      "globalItems": 2,
+      "needBytes": 0,
+      "needDeletes": 0,
+      "needItems": 0,
+      "remoteState": "valid",
+      "sequence": 4
+    }
+  },
+  {
+    "id": 44,
+    "globalID": 46,
+    "time": "2026-10-12T09:14:29.139159059Z",
+    "type": "DeviceConnected",
+    "data": {
+      "addr": "127.0.0.1:22001",
+      "clientName": "syncthing",
+      "clientVersion": "v2.1.6",
+      "deviceName": "422465fd87ff",
+      "id": "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC",
+      "type": "tcp-client"
+    }
+  },
+  {
+    "id": 45,
+    "globalID": 47,
+    "time": "2026-10-12T09:14:29.20485296Z",
+    "type": "StateChanged",
+    "data": {
+      "duration": 9.20484559,
+      "folder": "default",
+      "from": "idle",
+      "to": "scan-waiting"
+    }
+  },
+  {
+    "id": 46,
+    "globalID": 48,
+    "time": "2026-10-12T09:14:29.204873692Z",
+    "type": "StateChanged",
+    "data": {
+      "duration": 0.204871458,
+      "folder": "default",
+      "from": "scan-waiting",
+      "to": "scanning"
+    }
+  },
+  {
+    "id": 47,
+    "globalID": 49,
+    "time": "2026-10-12T09:14:29.207074304Z",
+    "type": "StateChanged",
+    "data": {
+      "duration": 0.207073645,
+      "folder": "default",
+      "from": "scanning",
+      "to": "idle"
+    }
+  },
+  {
+    "id": 48,
+    "globalID": 50,
+    "time": "2026-10-12T09:14:30.036202187Z",
+    "type": "FolderSummary",
+    "data": {
+      "folder": "default",
+      "summary": {
+        "errors": 0,
+        "pullErrors": 0,
+        "invalid": "",
+        "globalFiles": 2,
+        "globalDirectories": 0,
+        "globalSymlinks": 0,
+        "globalDeleted": 0,
+        "globalBytes": 209715206,
+        "globalTotalItems": 2,
+        "localFiles": 2,
+        "localDirectories": 0,
+        "localSymlinks": 0,
+        "localDeleted": 0,
+        "localBytes": 209715206,
+        "localTotalItems": 2,
+        "needFiles": 0,
+        "needDirectories": 0,
+        "needSymlinks": 0,
+        "needDeletes": 0,
+        "needBytes": 0,
+        "needTotalItems": 0,
+        "receiveOnlyChangedFiles": 0,
+        "receiveOnlyChangedDirectories": 0,
+        "receiveOnlyChangedSymlinks": 0,
+        "receiveOnlyChangedDeletes": 0,
+        "receiveOnlyChangedBytes": 0,
+        "receiveOnlyTotalItems": 0,
+        "inSyncFiles": 2,
+        "inSyncBytes": 209715206,
+        "state": "idle",
+        "stateChanged": "2026-10-12T09:14:29Z",
+        "error": "",
+        "version": 2,
+        "sequence": 2,
+        "remoteSequence": {
+          "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC": 4
+        },
+        "ignorePatterns": false,
+        "watchError": ""
+      }
+    }
+  },
+  {
+    "id": 49,
+    "globalID": 51,
+    "time": "2026-10-12T09:14:30.036417186Z",
+    "type": "FolderCompletion",
+    "data": {
+      "completion": 100,
+      "device": "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC",
+      "folder": "default",
+      "globalBytes": 209715206,
+      "globalItems": 2,
+      "needBytes": 0,
+      "needDeletes": 0,
+      "needItems": 0,
+      "remoteState": "valid",
+      "sequence": 4
+    }
+  }
+]

@@ -1,0 +1,1035 @@
+[
+  {
+    "id": 113,
+    "globalID": 118,
+    "time": "2026-10-12T09:15:08.36853194Z",
+    "type": "DevicePaused",
+    "data": {
+      "device": "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC"
+    }
+  },
+  {
+    "id": 114,
+    "globalID": 119,
+    "time": "2026-10-12T09:15:08.368543811Z",
+    "type": "DevicePaused",
+    "data": {
+      "device": "UOR3FHY-HJFYMEI-5U5AXOD-Q4RHYXY-ZL5KSNZ-L76C6M6-BXGCIIS-IZ7ZGAP"
+    }
+  },
+  {
+    "id": 115,
+    "globalID": 120,
+    "time": "2026-10-12T09:15:08.36951042Z",
+    "type": "DeviceDisconnected",
+    "data": {
+      "error": "device is paused",
+      "id": "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC"
+    }
+  },
+  {
+    "id": 116,
+    "globalID": 121,
+    "time": "2026-10-12T09:15:10.393513522Z",
+    "type": "StateChanged",
+    "data": {
+      "duration": 5.393507525,
+      "folder": "default",
+      "from": "idle",
+      "to": "scan-waiting"
+    }
+  },
+  {
+    "id": 117,
+    "globalID": 122,
+    "time": "2026-10-12T09:15:10.393529766Z",
+    "type": "StateChanged",
+    "data": {
+      "duration": 0.39352775,
+      "folder": "default",
+      "from": "scan-waiting",
+      "to": "scanning"
+    }
+  },
+  {
+    "id": 118,
+    "globalID": 123,
+    "time": "2026-10-12T09:15:10.39474929Z",
+    "type": "FolderScanProgress",
+    "data": {
+      "current": 13,
+      "folder": "default",
+      "rate": 0,
+      "total": 14
+    }
+  },
+  {
+    "id": 119,
+    "globalID": 124,
+    "time": "2026-10-12T09:15:10.395817148Z",
+    "type": "LocalIndexUpdated",
+    "data": {
+      "filenames": [
+        "a.txt"
+      ],
+      "folder": "default",
+      "items": 1,
+      "sequence": 10,
+      "version": 10
+    }
+  },
+  {
+    "id": 120,
+    "globalID": 126,
+    "time": "2026-10-12T09:15:10.39736909Z",
+    "type": "StateChanged",
+    "data": {
+      "duration": 0.397368425,
+      "folder": "default",
+      "from": "scanning",
+      "to": "idle"
+    }
+  },
+  {
+    "id": 121,
+    "globalID": 127,
+    "time": "2026-10-12T09:15:12.098018624Z",
+    "type": "FolderSummary",
+    "data": {
+      "folder": "default",
+      "summary": {
+        "errors": 0,
+        "pullErrors": 0,
+        "invalid": "",
+        "globalFiles": 3,
+        "globalDirectories": 0,
+        "globalSymlinks": 0,
+        "globalDeleted": 0,
+        "globalBytes": 209715219,
+        "globalTotalItems": 3,
+        "localFiles": 3,
+        "localDirectories": 0,
+        "localSymlinks": 0,
+        "localDeleted": 0,
+        "localBytes": 209715219,
+        "localTotalItems": 3,
+        "needFiles": 0,
+        "needDirectories": 0,
+        "needSymlinks": 0,
+        "needDeletes": 0,
+        "needBytes": 0,
+        "needTotalItems": 0,
+        "receiveOnlyChangedFiles": 0,
+        "receiveOnlyChangedDirectories": 0,
+        "receiveOnlyChangedSymlinks": 0,
+        "receiveOnlyChangedDeletes": 0,
+        "receiveOnlyChangedBytes": 0,
+        "receiveOnlyTotalItems": 0,
+        "inSyncFiles": 3,
+        "inSyncBytes": 209715219,
+        "state": "idle",
+        "stateChanged": "2026-10-12T09:15:10Z",
+        "error": "",
+        "version": 10,
+        "sequence": 10,
+        "remoteSequence": {
+          "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC": 9
+        },
+        "ignorePatterns": false,
+        "watchError": ""
+      }
+    }
+  },
+  {
+    "id": 122,
+    "globalID": 128,
+    "time": "2026-10-12T09:15:12.098430328Z",
+    "type": "FolderCompletion",
+    "data": {
+      "completion": 99.9999938011175,
+      "device": "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC",
+      "folder": "default",
+      "globalBytes": 209715219,
+      "globalItems": 3,
+      "needBytes": 13,
+      "needDeletes": 0,
+      "needItems": 1,
+      "remoteState": "unknown",
+      "sequence": 9
+    }
+  },
+  {
+    "id": 123,
+    "globalID": 129,
+    "time": "2026-10-12T09:15:12.423192807Z",
+    "type": "DeviceResumed",
+    "data": {
+      "device": "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC"
+    }
+  },
+  {
+    "id": 124,
+    "globalID": 130,
+    "time": "2026-10-12T09:15:12.423200224Z",
+    "type": "DeviceResumed",
+    "data": {
+      "device": "UOR3FHY-HJFYMEI-5U5AXOD-Q4RHYXY-ZL5KSNZ-L76C6M6-BXGCIIS-IZ7ZGAP"
+    }
+  },
+  {
+    "id": 125,
+    "globalID": 131,
+    "time": "2026-10-12T09:15:13.369285767Z",
+    "type": "ConfigSaved",
+    "data": {
+      "version": 52,
+      "folders": [
+        {
+          "id": "default",
+          "label": "Sync",
+          "filesystemType": "basic",
+          "path": "/home/u/Sync",
+          "type": "sendreceive",
+          "devices": [
+            {
+              "deviceID": "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC",
+              "introducedBy": "",
+              "encryptionPassword": ""
+            },
+            {
+              "deviceID": "UOR3FHY-HJFYMEI-5U5AXOD-Q4RHYXY-ZL5KSNZ-L76C6M6-BXGCIIS-IZ7ZGAP",
+              "introducedBy": "",
+              "encryptionPassword": ""
+            }
+          ],
+          "group": "",
+          "rescanIntervalS": 3600,
+          "fsWatcherEnabled": true,
+          "fsWatcherDelayS": 10,
+          "fsWatcherTimeoutS": 0,
+          "ignorePerms": false,
+          "autoNormalize": true,
+          "minDiskFree": {
+            "value": 1,
+            "unit": "%"
+          },
+          "versioning": {
+            "type": "",
+            "params": {},
+            "cleanupIntervalS": 3600,
+            "fsPath": "",
+            "fsType": "basic"
+          },
+          "copiers": 0,
+          "pullerMaxPendingKiB": 0,
+          "hashers": 0,
+          "order": "random",
+          "ignoreDelete": false,
+          "scanProgressIntervalS": 0,
+          "pullerPauseS": 0,
+          "pullerDelayS": 1,
+          "maxConflicts": 10,
+          "disableSparseFiles": false,
+          "paused": false,
+          "markerName": ".stfolder",
+          "copyOwnershipFromParent": false,
+          "modTimeWindowS": 0,
+          "maxConcurrentWrites": 16,
+          "disableFsync": false,
+          "blockPullOrder": "standard",
+          "copyRangeMethod": "standard",
+          "caseSensitiveFS": false,
+          "junctionsAsDirs": false,
+          "syncOwnership": false,
+          "sendOwnership": false,
+          "syncXattrs": false,
+          "sendXattrs": false,
+          "blockIndexing": true,
+          "xattrFilter": {
+            "entries": [],
+            "maxSingleEntrySize": 1024,
+            "maxTotalSize": 4096
+          }
+        }
+      ],
+      "devices": [
+        {
+          "deviceID": "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC",
+          "name": "phone-b",
+          "addresses": [
+            "tcp://127.0.0.1:22001"
+          ],
+          "compression": "metadata",
+          "certName": "",
+          "introducer": false,
+          "skipIntroductionRemovals": false,
+          "introducedBy": "",
+          "paused": false,
+          "allowedNetworks": [],
+          "autoAcceptFolders": false,
+          "maxSendKbps": 0,
+          "maxRecvKbps": 0,
+          "ignoredFolders": [],
+          "maxRequestKiB": 0,
+          "untrusted": false,
+          "remoteGUIPort": 0,
+          "numConnections": 0,
+          "group": ""
+        },
+        {
+          "deviceID": "UOR3FHY-HJFYMEI-5U5AXOD-Q4RHYXY-ZL5KSNZ-L76C6M6-BXGCIIS-IZ7ZGAP",
+          "name": "422465fd87ff",
+          "addresses": [
+            "dynamic"
+          ],
+          "compression": "metadata",
+          "certName": "",
+          "introducer": false,
+          "skipIntroductionRemovals": false,
+          "introducedBy": "",
+          "paused": false,
+          "allowedNetworks": [],
+          "autoAcceptFolders": false,
+          "maxSendKbps": 0,
+          "maxRecvKbps": 0,
+          "ignoredFolders": [],
+          "maxRequestKiB": 0,
+          "untrusted": false,
+          "remoteGUIPort": 0,
+          "numConnections": 0,
+          "group": ""
+        }
+      ],
+      "gui": {
+        "enabled": true,
+        "address": "127.0.0.1:8384",
+        "unixSocketPermissions": "",
+        "user": "",
+        "password": "",
+        "authMode": "static",
+        "metricsWithoutAuth": false,
+        "useTLS": false,
+        "apiKey": "GkytU2rqgiPwJnuyHbzZbXpqefszr7D2",
+        "insecureAdminAccess": false,
+        "theme": "default",
+        "insecureSkipHostcheck": false,
+        "insecureAllowFrameLoading": false,
+        "sendBasicAuthPrompt": false,
+        "sessionCookieDurationS": 604800,
+        "sessionCookiePath": "/"
+      },
+      "ldap": {
+        "address": "",
+        "bindDN": "",
+        "transport": "plain",
+        "insecureSkipVerify": false,
+        "searchBaseDN": "",
+        "searchFilter": ""
+      },
+      "options": {
+        "listenAddresses": [
+          "tcp://127.0.0.1:22000"
+        ],
+        "globalAnnounceServers": [
+          "default"
+        ],
+        "globalAnnounceEnabled": false,
+        "localAnnounceEnabled": true,
+        "localAnnouncePort": 21027,
+        "localAnnounceMCAddr": "[ff12::8384]:21027",
+        "maxSendKbps": 0,
+        "maxRecvKbps": 0,
+        "reconnectionIntervalS": 20,
+        "relaysEnabled": false,
+        "relayReconnectIntervalM": 10,
+        "startBrowser": true,
+        "natEnabled": false,
+        "natLeaseMinutes": 60,
+        "natRenewalMinutes": 30,
+        "natTimeoutSeconds": 10,
+        "urAccepted": 0,
+        "urSeen": 0,
+        "urUniqueId": "",
+        "urURL": "https://data.syncthing.net/newdata",
+        "urInitialDelayS": 1800,
+        "autoUpgradeIntervalH": 12,
+        "upgradeToPreReleases": false,
+        "keepTemporariesH": 24,
+        "progressUpdateIntervalS": 5,
+        "limitBandwidthInLan": false,
+        "minHomeDiskFree": {
+          "value": 1,
+          "unit": "%"
+        },
+        "releasesURL": "https://upgrades.syncthing.net/meta.json",
+        "alwaysLocalNets": [],
+        "overwriteRemoteDeviceNamesOnConnect": false,
+        "tempIndexMinBlocks": 10,
+        "unackedNotificationIDs": [
+          "authenticationUserAndPassword"
+        ],
+        "trafficClass": 0,
+        "setLowPriority": true,
+        "maxFolderConcurrency": 0,
+        "crURL": "https://crash.syncthing.net/newcrash",
+        "crashReportingEnabled": true,
+        "stunKeepaliveStartS": 180,
+        "stunKeepaliveMinS": 20,
+        "stunServers": [
+          "default"
+        ],
+        "maxConcurrentIncomingRequestKiB": 0,
+        "announceLANAddresses": true,
+        "sendFullIndexOnUpgrade": false,
+        "featureFlags": [],
+        "auditEnabled": false,
+        "auditFile": "",
+        "connectionLimitEnough": 0,
+        "connectionLimitMax": 0,
+        "connectionPriorityTcpLan": 10,
+        "connectionPriorityQuicLan": 20,
+        "connectionPriorityTcpWan": 30,
+        "connectionPriorityQuicWan": 40,
+        "connectionPriorityRelay": 50,
+        "connectionPriorityUpgradeThreshold": 0
+      },
+      "remoteIgnoredDevices": [],
+      "defaults": {
+        "folder": {
+          "id": "",
+          "label": "",
+          "filesystemType": "basic",
+          "path": "",
+          "type": "sendreceive",
+          "devices": [
+            {
+              "deviceID": "UOR3FHY-HJFYMEI-5U5AXOD-Q4RHYXY-ZL5KSNZ-L76C6M6-BXGCIIS-IZ7ZGAP",
+              "introducedBy": "",
+              "encryptionPassword": ""
+            }
+          ],
+          "group": "",
+          "rescanIntervalS": 3600,
+          "fsWatcherEnabled": true,
+          "fsWatcherDelayS": 10,
+          "fsWatcherTimeoutS": 0,
+          "ignorePerms": false,
+          "autoNormalize": true,
+          "minDiskFree": {
+            "value": 1,
+            "unit": "%"
+          },
+          "versioning": {
+            "type": "",
+            "params": {},
+            "cleanupIntervalS": 3600,
+            "fsPath": "",
+            "fsType": "basic"
+          },
+          "copiers": 0,
+          "pullerMaxPendingKiB": 0,
+          "hashers": 0,
+          "order": "random",
+          "ignoreDelete": false,
+          "scanProgressIntervalS": 0,
+          "pullerPauseS": 0,
+          "pullerDelayS": 1,
+          "maxConflicts": 10,
+          "disableSparseFiles": false,
+          "paused": false,
+          "markerName": ".stfolder",
+          "copyOwnershipFromParent": false,
+          "modTimeWindowS": 0,
+          "maxConcurrentWrites": 16,
+          "disableFsync": false,
+          "blockPullOrder": "standard",
+          "copyRangeMethod": "standard",
+          "caseSensitiveFS": false,
+          "junctionsAsDirs": false,
+          "syncOwnership": false,
+          "sendOwnership": false,
+          "syncXattrs": false,
+          "sendXattrs": false,
+          "blockIndexing": true,
+          "xattrFilter": {
+            "entries": [],
+            "maxSingleEntrySize": 1024,
+            "maxTotalSize": 4096
+          }
+        },
+        "device": {
+          "deviceID": "",
+          "name": "",
+          "addresses": [
+            "dynamic"
+          ],
+          "compression": "metadata",
+          "certName": "",
+          "introducer": false,
+          "skipIntroductionRemovals": false,
+          "introducedBy": "",
+          "paused": false,
+          "allowedNetworks": [],
+          "autoAcceptFolders": false,
+          "maxSendKbps": 0,
+          "maxRecvKbps": 0,
+          "ignoredFolders": [],
+          "maxRequestKiB": 0,
+          "untrusted": false,
+          "remoteGUIPort": 0,
+          "numConnections": 0,
+          "group": ""
+        },
+        "ignores": {
+          "lines": []
+        }
+      }
+    }
+  },
+  {
+    "id": 126,
+    "globalID": 132,
+    "time": "2026-10-12T09:15:15.786102217Z",
+    "type": "StateChanged",
+    "data": {
+      "duration": 5.786095387,
+      "folder": "default",
+      "from": "idle",
+      "to": "scan-waiting"
+    }
+  },
+  {
+    "id": 127,
+    "globalID": 133,
+    "time": "2026-10-12T09:15:15.786121039Z",
+    "type": "StateChanged",
+    "data": {
+      "duration": 0.786119063,
+      "folder": "default",
+      "from": "scan-waiting",
+      "to": "scanning"
+    }
+  },
+  {
+    "id": 128,
+    "globalID": 134,
+    "time": "2026-10-12T09:15:15.786776274Z",
+    "type": "StateChanged",
+    "data": {
+      "duration": 0.786775611,
+      "folder": "default",
+      "from": "scanning",
+      "to": "idle"
+    }
+  },
+  {
+    "id": 129,
+    "globalID": 135,
+    "time": "2026-10-12T09:15:23.126469862Z",
+    "type": "DeviceConnected",
+    "data": {
+      "addr": "127.0.0.1:22001",
+      "clientName": "syncthing",
+      "clientVersion": "v2.1.6",
+      "deviceName": "422465fd87ff",
+      "id": "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC",
+      "type": "tcp-server"
+    }
+  },
+  {
+    "id": 130,
+    "globalID": 136,
+    "time": "2026-10-12T09:15:24.116325674Z",
+    "type": "FolderSummary",
+    "data": {
+      "folder": "default",
+      "summary": {
+        "errors": 0,
+        "pullErrors": 0,
+        "invalid": "",
+        "globalFiles": 3,
+        "globalDirectories": 0,
+        "globalSymlinks": 0,
+        "globalDeleted": 0,
+        "globalBytes": 209715219,
+        "globalTotalItems": 3,
+        "localFiles": 3,
+        "localDirectories": 0,
+        "localSymlinks": 0,
+        "localDeleted": 0,
+        "localBytes": 209715219,
+        "localTotalItems": 3,
+        "needFiles": 0,
+        "needDirectories": 0,
+        "needSymlinks": 0,
+        "needDeletes": 0,
+        "needBytes": 0,
+        "needTotalItems": 0,
+        "receiveOnlyChangedFiles": 0,
+        "receiveOnlyChangedDirectories": 0,
+        "receiveOnlyChangedSymlinks": 0,
+        "receiveOnlyChangedDeletes": 0,
+        "receiveOnlyChangedBytes": 0,
+        "receiveOnlyTotalItems": 0,
+        "inSyncFiles": 3,
+        "inSyncBytes": 209715219,
+        "state": "idle",
+        "stateChanged": "2026-10-12T09:15:15Z",
+        "error": "",
+        "version": 10,
+        "sequence": 10,
+        "remoteSequence": {
+          "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC": 9
+        },
+        "ignorePatterns": false,
+        "watchError": ""
+      }
+    }
+  },
+  {
+    "id": 131,
+    "globalID": 137,
+    "time": "2026-10-12T09:15:24.116568299Z",
+    "type": "FolderCompletion",
+    "data": {
+      "completion": 99.9999938011175,
+      "device": "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC",
+      "folder": "default",
+      "globalBytes": 209715219,
+      "globalItems": 3,
+      "needBytes": 13,
+      "needDeletes": 0,
+      "needItems": 1,
+      "remoteState": "unknown",
+      "sequence": 9
+    }
+  },
+  {
+    "id": 132,
+    "globalID": 138,
+    "time": "2026-10-12T09:15:24.12838979Z",
+    "type": "ClusterConfigReceived",
+    "data": {
+      "device": "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC"
+    }
+  },
+  {
+    "id": 133,
+    "globalID": 139,
+    "time": "2026-10-12T09:15:24.134522981Z",
+    "type": "RemoteIndexUpdated",
+    "data": {
+      "device": "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC",
+      "folder": "default",
+      "items": 1,
+      "sequence": 10,
+      "version": 10
+    }
+  },
+  {
+    "id": 134,
+    "globalID": 140,
+    "time": "2026-10-12T09:15:24.134717057Z",
+    "type": "StateChanged",
+    "data": {
+      "duration": 9.134706375,
+      "folder": "default",
+      "from": "idle",
+      "to": "sync-waiting"
+    }
+  },
+  {
+    "id": 135,
+    "globalID": 141,
+    "time": "2026-10-12T09:15:25.135860044Z",
+    "type": "StateChanged",
+    "data": {
+      "duration": 1.135858643,
+      "folder": "default",
+      "from": "sync-waiting",
+      "to": "idle"
+    }
+  },
+  {
+    "id": 136,
+    "globalID": 142,
+    "time": "2026-10-12T09:15:25.135886686Z",
+    "type": "StateChanged",
+    "data": {
+      "duration": 0.135880925,
+      "folder": "default",
+      "from": "idle",
+      "to": "sync-preparing"
+    }
+  },
+  {
+    "id": 137,
+    "globalID": 143,
+    "time": "2026-10-12T09:15:25.136729508Z",
+    "type": "ItemStarted",
+    "data": {
+      "action": "update",
+      "folder": "default",
+      "item": "a.txt",
+      "type": "file"
+    }
+  },
+  {
+    "id": 138,
+    "globalID": 144,
+    "time": "2026-10-12T09:15:25.136798358Z",
+    "type": "StateChanged",
+    "data": {
+      "duration": 0.136792488,
+      "folder": "default",
+      "from": "sync-preparing",
+      "to": "syncing"
+    }
+  },
+  {
+    "id": 139,
+    "globalID": 145,
+    "time": "2026-10-12T09:15:25.138638969Z",
+    "type": "ItemFinished",
+    "data": {
+      "action": "update",
+      "error": null,
+      "folder": "default",
+      "item": "a.txt",
+      "type": "file"
+    }
+  },
+  {
+    "id": 140,
+    "globalID": 146,
+    "time": "2026-10-12T09:15:25.14033085Z",
+    "type": "LocalIndexUpdated",
+    "data": {
+      "filenames": [
+        "a.txt"
+      ],
+      "folder": "default",
+      "items": 1,
+      "sequence": 12,
+      "version": 12
+    }
+  },
+  {
+    "id": 141,
+    "globalID": 148,
+    "time": "2026-10-12T09:15:25.140400925Z",
+    "type": "StateChanged",
+    "data": {
+      "duration": 0.140396262,
+      "folder": "default",
+      "from": "syncing",
+      "to": "sync-preparing"
+    }
+  },
+  {
+    "id": 142,
+    "globalID": 149,
+    "time": "2026-10-12T09:15:25.140499288Z",
+    "type": "StateChanged",
+    "data": {
+      "duration": 0.14049896,
+      "folder": "default",
+      "from": "sync-preparing",
+      "to": "idle"
+    }
+  },
+  {
+    "id": 143,
+    "globalID": 150,
+    "time": "2026-10-12T09:15:25.14066534Z",
+    "type": "FolderSummary",
+    "data": {
+      "folder": "default",
+      "summary": {
+        "errors": 0,
+        "pullErrors": 0,
+        "invalid": "",
+        "globalFiles": 3,
+        "globalDirectories": 0,
+        "globalSymlinks": 0,
+        "globalDeleted": 0,
+        "globalBytes": 209715217,
+        "globalTotalItems": 3,
+        "localFiles": 3,
+        "localDirectories": 0,
+        "localSymlinks": 0,
+        "localDeleted": 0,
+        "localBytes": 209715217,
+        "localTotalItems": 3,
+        "needFiles": 0,
+        "needDirectories": 0,
+        "needSymlinks": 0,
+        "needDeletes": 0,
+        "needBytes": 0,
+        "needTotalItems": 0,
+        "receiveOnlyChangedFiles": 0,
+        "receiveOnlyChangedDirectories": 0,
+        "receiveOnlyChangedSymlinks": 0,
+        "receiveOnlyChangedDeletes": 0,
+        "receiveOnlyChangedBytes": 0,
+        "receiveOnlyTotalItems": 0,
+        "inSyncFiles": 3,
+        "inSyncBytes": 209715217,
+        "state": "idle",
+        "stateChanged": "2026-10-12T09:15:25Z",
+        "error": "",
+        "version": 12,
+        "sequence": 12,
+        "remoteSequence": {
+          "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC": 10
+        },
+        "ignorePatterns": false,
+        "watchError": ""
+      }
+    }
+  },
+  {
+    "id": 144,
+    "globalID": 151,
+    "time": "2026-10-12T09:15:25.140766214Z",
+    "type": "StateChanged",
+    "data": {
+      "duration": 0.140761806,
+      "folder": "default",
+      "from": "idle",
+      "to": "scan-waiting"
+    }
+  },
+  {
+    "id": 145,
+    "globalID": 152,
+    "time": "2026-10-12T09:15:25.140776726Z",
+    "type": "StateChanged",
+    "data": {
+      "duration": 0.140774696,
+      "folder": "default",
+      "from": "scan-waiting",
+      "to": "scanning"
+    }
+  },
+  {
+    "id": 146,
+    "globalID": 153,
+    "time": "2026-10-12T09:15:25.140836815Z",
+    "type": "FolderCompletion",
+    "data": {
+      "completion": 100,
+      "device": "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC",
+      "folder": "default",
+      "globalBytes": 209715217,
+      "globalItems": 3,
+      "needBytes": 0,
+      "needDeletes": 0,
+      "needItems": 0,
+      "remoteState": "valid",
+      "sequence": 10
+    }
+  },
+  {
+    "id": 147,
+    "globalID": 154,
+    "time": "2026-10-12T09:15:25.141337975Z",
+    "type": "FolderScanProgress",
+    "data": {
+      "current": 13,
+      "folder": "default",
+      "rate": 0,
+      "total": 14
+    }
+  },
+  {
+    "id": 148,
+    "globalID": 155,
+    "time": "2026-10-12T09:15:25.14206826Z",
+    "type": "LocalIndexUpdated",
+    "data": {
+      "filenames": [
+        "a.sync-conflict-20261012-091525-JV2N5IJ.txt"
+      ],
+      "folder": "default",
+      "items": 1,
+      "sequence": 13,
+      "version": 13
+    }
+  },
+  {
+    "id": 149,
+    "globalID": 157,
+    "time": "2026-10-12T09:15:25.142332438Z",
+    "type": "StateChanged",
+    "data": {
+      "duration": 0.142331966,
+      "folder": "default",
+      "from": "scanning",
+      "to": "idle"
+    }
+  },
+  {
+    "id": 150,
+    "globalID": 158,
+    "time": "2026-10-12T09:15:26.119473293Z",
+    "type": "FolderSummary",
+    "data": {
+      "folder": "default",
+      "summary": {
+        "errors": 0,
+        "pullErrors": 0,
+        "invalid": "",
+        "globalFiles": 4,
+        "globalDirectories": 0,
+        "globalSymlinks": 0,
+        "globalDeleted": 0,
+        "globalBytes": 209715230,
+        "globalTotalItems": 4,
+        "localFiles": 4,
+        "localDirectories": 0,
+        "localSymlinks": 0,
+        "localDeleted": 0,
+        "localBytes": 209715230,
+        "localTotalItems": 4,
+        "needFiles": 0,
+        "needDirectories": 0,
+        "needSymlinks": 0,
+        "needDeletes": 0,
+        "needBytes": 0,
+        "needTotalItems": 0,
+        "receiveOnlyChangedFiles": 0,
+        "receiveOnlyChangedDirectories": 0,
+        "receiveOnlyChangedSymlinks": 0,
+        "receiveOnlyChangedDeletes": 0,
+        "receiveOnlyChangedBytes": 0,
+        "receiveOnlyTotalItems": 0,
+        "inSyncFiles": 4,
+        "inSyncBytes": 209715230,
+        "state": "idle",
+        "stateChanged": "2026-10-12T09:15:25Z",
+        "error": "",
+        "version": 13,
+        "sequence": 13,
+        "remoteSequence": {
+          "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC": 10
+        },
+        "ignorePatterns": false,
+        "watchError": ""
+      }
+    }
+  },
+  {
+    "id": 151,
+    "globalID": 159,
+    "time": "2026-10-12T09:15:26.119680037Z",
+    "type": "FolderCompletion",
+    "data": {
+      "completion": 99.99999380111782,
+      "device": "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC",
+      "folder": "default",
+      "globalBytes": 209715230,
+      "globalItems": 4,
+      "needBytes": 13,
+      "needDeletes": 0,
+      "needItems": 1,
+      "remoteState": "valid",
+      "sequence": 10
+    }
+  },
+  {
+    "id": 152,
+    "globalID": 160,
+    "time": "2026-10-12T09:15:26.652522981Z",
+    "type": "RemoteIndexUpdated",
+    "data": {
+      "device": "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC",
+      "folder": "default",
+      "items": 1,
+      "sequence": 14,
+      "version": 14
+    }
+  },
+  {
+    "id": 153,
+    "globalID": 161,
+    "time": "2026-10-12T09:15:28.121152793Z",
+    "type": "FolderSummary",
+    "data": {
+      "folder": "default",
+      "summary": {
+        "errors": 0,
+        "pullErrors": 0,
+        "invalid": "",
+        "globalFiles": 4,
+        "globalDirectories": 0,
+        "globalSymlinks": 0,
+        "globalDeleted": 0,
+        "globalBytes": 209715230,
+        "globalTotalItems": 4,
+        "localFiles": 4,
+        "localDirectories": 0,
+        "localSymlinks": 0,
+        "localDeleted": 0,
+        "localBytes": 209715230,
+        "localTotalItems": 4,
+        "needFiles": 0,
+        "needDirectories": 0,
+        "needSymlinks": 0,
+        "needDeletes": 0,
+        "needBytes": 0,
+        "needTotalItems": 0,
+        "receiveOnlyChangedFiles": 0,
+        "receiveOnlyChangedDirectories": 0,
+        "receiveOnlyChangedSymlinks": 0,
+        "receiveOnlyChangedDeletes": 0,
+        "receiveOnlyChangedBytes": 0,
+        "receiveOnlyTotalItems": 0,
+        "inSyncFiles": 4,
+        "inSyncBytes": 209715230,
+        "state": "idle",
+        "stateChanged": "2026-10-12T09:15:25Z",
+        "error": "",
+        "version": 13,
+        "sequence": 13,
+        "remoteSequence": {
+          "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC": 14
+        },
+        "ignorePatterns": false,
+        "watchError": ""
+      }
+    }
+  },
+  {
+    "id": 154,
+    "globalID": 162,
+    "time": "2026-10-12T09:15:28.121357628Z",
+    "type": "FolderCompletion",
+    "data": {
+      "completion": 100,
+      "device": "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC",
+      "folder": "default",
+      "globalBytes": 209715230,
+      "globalItems": 4,
+      "needBytes": 0,
+      "needDeletes": 0,
+      "needItems": 0,
+      "remoteState": "valid",
+      "sequence": 14
+    }
+  },
+  {
+    "id": 155,
+    "globalID": 163,
+    "time": "2026-10-12T09:15:32.429639687Z",
+    "type": "DeviceConnected",
+    "data": {
+      "addr": "127.0.0.1:22001",
+      "clientName": "syncthing",
+      "clientVersion": "v2.1.6",
+      "deviceName": "422465fd87ff",
+      "id": "JV2N5IJ-MIWTMJB-P6C2FY4-K5F2IL3-WPSDB6C-M7AYNID-EFYISGE-36JBHQC",
+      "type": "tcp-client"
+    }
+  }
+]

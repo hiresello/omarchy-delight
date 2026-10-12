@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "id": "sync",
+  "name": "Sync",
+  "icon": "󰓦",
+  "description": "Syncthing file sync with QR pairing for phones and other computers.",
+  "packages": { "repo": ["syncthing"], "aur": [] },
+  "units": ["delight-sync.service"],
+  "firewall": [
+    { "proto": "tcp", "ports": "22000", "description": "Syncthing sync protocol" },
+    { "proto": "udp", "ports": "22000", "description": "Syncthing sync protocol (QUIC)" },
+    { "proto": "udp", "ports": "21027", "description": "Syncthing local discovery" }
+  ],
+  "capabilities": ["network"],
+  "provides": { "shareTargets": false, "devices": true },
+  "plugin": "plugin",
+  "menu": [
+    { "id": "pair", "label": "Pair a device", "icon": "󰐲", "action": "delight sync pair" },
+    { "id": "toggle", "label": "Pause or resume sync", "icon": "󰓦", "action": "delight sync toggle" },
+    { "id": "open", "label": "Open Syncthing", "icon": "󰖟", "action": "delight sync open" }
+  ]
+}
