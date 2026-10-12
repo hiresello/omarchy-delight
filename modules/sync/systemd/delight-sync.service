@@ -4,7 +4,7 @@ PartOf=delight.target
 After=syncthing.service
 
 [Service]
-ExecStart=%h/.local/bin/delight sync watch
+ExecStart=%h/.local/share/omarchy-delight/modules/sync/bin/delight-sync watch
 Restart=on-failure
 RestartSec=5
 
