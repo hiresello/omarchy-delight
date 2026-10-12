@@ -24,6 +24,10 @@ for cidr in 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16; do
   ok "ufw rule for $cidr" grep -q "ufw allow in proto tcp from $cidr to any port 24800" "$DELIGHT_STUB_LOG"
 done
 
+# Re-enabling an already-enabled module restarts the unit.
+ok "re-enable" "$BIN" enable --role share
+ok "re-enable restarts unit" grep -q 'systemctl --user restart delight-input.service' "$DELIGHT_STUB_LOG"
+
 doctor_out=$("$BIN" doctor || true)
 ok "doctor sees InputCapture" grep -q 'InputCapture portal: present' <<<"$doctor_out"
 ok "doctor names backend" grep -q 'backend: deskflow' <<<"$doctor_out"

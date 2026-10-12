@@ -45,6 +45,11 @@ Peers are machines on a screen edge (`left|right|top|bottom`); move the pointer
 across the edge to control them. Peer names must match `^[A-Za-z0-9._-]+$`
 (the screen name the peer advertises).
 
+For Deskflow, each peer's `name` **must equal that peer's Deskflow computer /
+screen name** — Deskflow matches clients to screens by name. Likewise, the
+Omarchy machine's own screen name (`input.name`, default `hostname -s`) is the
+server screen name a Mac client must enter when connecting.
+
 ## Files and ports
 
 Generated under `~/.config/omarchy-delight/input/`:

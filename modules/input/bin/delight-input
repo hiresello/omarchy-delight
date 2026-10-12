@@ -153,7 +153,10 @@ module_install() {
 }
 
 module_enable() {
-  local role="" backend=""
+  local role="" backend="" was_enabled=false
+  if delight_module_enabled; then
+    was_enabled=true
+  fi
   while (($# > 0)); do
     case "$1" in
       --role)
@@ -177,6 +180,10 @@ module_enable() {
   fi
   input_configure
   delight_module_default_enable
+  if [[ $was_enabled == "true" ]]; then
+    delight_run systemctl --user restart delight-input.service \
+      || delight_warn "could not restart delight-input.service"
+  fi
 }
 
 module_configure() {
