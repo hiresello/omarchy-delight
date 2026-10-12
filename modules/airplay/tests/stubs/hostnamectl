@@ -1,0 +1,5 @@
+#!/bin/bash
+
+if [[ ${1:-} == --pretty && -f ${DELIGHT_STUB_STATE:-/tmp}/pretty-hostname ]]; then
+  cat "$DELIGHT_STUB_STATE/pretty-hostname"
+fi

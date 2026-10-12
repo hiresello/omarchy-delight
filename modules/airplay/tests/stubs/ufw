@@ -1,0 +1,7 @@
+#!/bin/bash
+
+if [[ ${1:-} == status && -f ${DELIGHT_STUB_STATE:-/tmp}/ufw-status ]]; then
+  cat "$DELIGHT_STUB_STATE/ufw-status"
+  exit 0
+fi
+exec "$DELIGHT_TEST_REPO/tests/stubs/ufw" "$@"

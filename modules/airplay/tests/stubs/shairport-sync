@@ -1,0 +1,9 @@
+#!/bin/bash
+
+if [[ ${1:-} == -V ]]; then
+  if [[ -f ${DELIGHT_STUB_STATE:-/tmp}/no-ap2 ]]; then
+    echo "5.0.4-OpenSSL-Avahi-PipeWire-metadata"
+  else
+    echo "5.0.4-AirPlay2-OpenSSL-Avahi-PipeWire-metadata"
+  fi
+fi
