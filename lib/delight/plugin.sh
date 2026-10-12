@@ -26,6 +26,28 @@ delight_plugin_id() {
   jq -r '.id' "$1/manifest.json"
 }
 
+delight_plugin_is_enabled() {
+  omarchy plugin list 2>/dev/null | grep -Eq "^${1}[[:space:]].*enabled"
+}
+
+# The shell drops a rescan that arrives while another is still running, and
+# `omarchy plugin enable` fails for a plugin it hasn't seen, so retry both.
+delight_plugin_enable_retry() {
+  local pid="$1" try
+  for try in 1 2 3 4 5 6 7 8 9 10; do
+    delight_plugin_rescan
+    delight_plugin_is_enabled "$pid" && return 0
+    if delight_run_quiet omarchy plugin enable "$pid" && delight_plugin_is_enabled "$pid"; then
+      return 0
+    fi
+    if delight_dry; then
+      return 0
+    fi
+    sleep 1
+  done
+  delight_warn "could not enable plugin $pid after $try attempts"
+}
+
 # delight_plugin_install <owner-id> <src-dir>: copy into ~/.config/omarchy/plugins/<plugin-id> and enable.
 delight_plugin_install() {
   local owner="$1" src="$2" pid dest staged
@@ -47,10 +69,7 @@ delight_plugin_install() {
   fi
   delight_state_add "$owner" plugins "$(jq -cn --arg p "$pid" '$p')"
   if delight_has_cmd omarchy; then
-    delight_plugin_rescan
-    if ! omarchy plugin list 2>/dev/null | grep -Eq "^${pid}[[:space:]].*enabled"; then
-      delight_run_quiet omarchy plugin enable "$pid" || delight_warn "could not enable plugin $pid"
-    fi
+    delight_plugin_enable_retry "$pid"
   else
     delight_log "omarchy not found; enable $pid later with: omarchy plugin enable $pid"
   fi
