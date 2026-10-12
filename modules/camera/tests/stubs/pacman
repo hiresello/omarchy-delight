@@ -1,0 +1,3 @@
+#!/bin/bash
+export DELIGHT_STUB_NAME=pacman
+exec "$(dirname -- "${BASH_SOURCE[0]}")/_camera_stub" "$@"

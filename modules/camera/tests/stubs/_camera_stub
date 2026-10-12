@@ -1,0 +1,158 @@
+#!/bin/bash
+
+name=${DELIGHT_STUB_NAME:-$(basename -- "$0")}
+state=${DELIGHT_STUB_STATE:-/tmp}
+log=${DELIGHT_STUB_LOG:-/dev/null}
+printf '%s %s\n' "$name" "$*" >>"$log"
+
+run_reconcile() {
+  local unit_file="$DELIGHT_CAMERA_SYSTEM_UNIT_DIR/delight-camera-loopback-$(id -u).service"
+  local line script
+  [[ -f $unit_file ]] || return 0
+  line=$(sed -n 's/^ExecStart=//p' "$unit_file")
+  script=${line#"/bin/sh -ec '"}
+  script=${script%\'}
+  script=${script//\$\$/\$}
+  script=${script//%%/%}
+  script=$(sed 's|/usr/bin/v4l2loopback-ctl|v4l2loopback-ctl|g; s|/usr/bin/modprobe|modprobe|g' <<<"$script")
+  /bin/sh -ec "$script"
+}
+
+case "$name" in
+  sudo)
+    exec "$@"
+    ;;
+  pacman)
+    if [[ ${1:-} == "-Q" ]]; then
+      [[ -f $state/pkg-${!#} ]]
+      exit
+    fi
+    exit 0
+    ;;
+  omarchy-pkg-add | omarchy-pkg-aur-add)
+    touch "$state/pkg-$1"
+    exit 0
+    ;;
+  systemctl)
+    if [[ ${1:-} == "--version" ]]; then
+      printf 'systemd 256\n'
+      exit 0
+    fi
+    if [[ ${1:-} == "edit" ]]; then
+      unit=${!#}
+      mkdir -p "$DELIGHT_CAMERA_SYSTEM_UNIT_DIR"
+      cat >"$DELIGHT_CAMERA_SYSTEM_UNIT_DIR/$unit"
+      exit 0
+    fi
+    if [[ ${1:-} == "is-enabled" ]]; then
+      [[ -f $state/enabled-${2:-} ]]
+      exit
+    fi
+    if [[ ${1:-} == "--user" ]]; then
+      shift
+      action=${1:-}
+      unit=${!#}
+      case "$action" in
+        is-active) [[ -f $state/active-$unit ]]; exit ;;
+        restart) touch "$state/active-$unit"; exit 0 ;;
+        stop) rm -f "$state/active-$unit"; exit 0 ;;
+        enable)
+          touch "$state/enabled-$unit" "$state/active-$unit"
+          if [[ $unit == "delight-camera.service" ]]; then
+            mkdir -p "$(dirname -- "$WANT")"
+            rm -f -- "$WANT"
+            touch "$WANT"
+            run_reconcile
+          fi
+          exit 0
+          ;;
+        disable)
+          rm -f "$state/enabled-$unit" "$state/active-$unit"
+          if [[ $unit == "delight-camera.service" ]]; then
+            rm -f -- "$WANT"
+            run_reconcile
+          fi
+          exit 0
+          ;;
+      esac
+    fi
+    action=${1:-}
+    unit=${!#}
+    case "$action" in
+      enable)
+        touch "$state/enabled-$unit"
+        ;;
+      disable)
+        rm -f "$state/enabled-$unit"
+        ;;
+      start)
+        run_reconcile
+        ;;
+    esac
+    exit 0
+    ;;
+  v4l2loopback-ctl)
+    case "${1:-}" in
+      add)
+        name_value=""
+        while (($# > 0)); do
+          if [[ $1 == "-n" ]]; then
+            name_value=$2
+            shift 2
+          else
+            shift
+          fi
+        done
+        number=11
+        while [[ -e $DELIGHT_SYSFS/devices/virtual/video4linux/video$number ]]; do
+          number=$((number + 1))
+        done
+        mkdir -p "$DELIGHT_SYSFS/devices/virtual/video4linux/video$number"
+        printf '%s\n' "$name_value" >"$DELIGHT_SYSFS/devices/virtual/video4linux/video$number/name"
+        printf '/dev/video%s\n' "$number"
+        ;;
+      delete)
+        device=${2##*/}
+        rm -rf -- "$DELIGHT_SYSFS/devices/virtual/video4linux/$device"
+        ;;
+      list)
+        printf 'OUTPUT\tCAPTURE\tNAME\n' >&2
+        for name_file in "$DELIGHT_SYSFS"/devices/virtual/video4linux/video*/name; do
+          [[ -f $name_file ]] || continue
+          IFS= read -r name_value <"$name_file" || true
+          printf '/dev/%s\t/dev/%s\t%s\n' "$(basename -- "$(dirname -- "$name_file")")" \
+            "$(basename -- "$(dirname -- "$name_file")")" "$name_value"
+        done
+        ;;
+    esac
+    exit 0
+    ;;
+  modinfo)
+    [[ ${DELIGHT_MODINFO_FAIL:-0} == "1" ]] && exit 1
+    printf '/usr/lib/modules/fake/extra/%s.ko\n' "${!#}"
+    ;;
+  modprobe)
+    [[ ${1:-} == "v4l2loopback" ]] && mkdir -p "$DELIGHT_SYSFS/module/v4l2loopback"
+    ;;
+  droidcam-cli)
+    ;;
+  adb)
+    if [[ ${1:-} == "devices" ]]; then
+      printf 'List of devices attached\n'
+      [[ ${DELIGHT_ADB_CONNECTED:-0} == "1" ]] && printf 'device-1\tdevice\n'
+    elif [[ ${1:-} == "shell" ]]; then
+      printf 'Test Android\n'
+    fi
+    ;;
+  idevice_id)
+    [[ ${DELIGHT_IOS_CONNECTED:-0} == "1" ]] && printf '0000000000000000000000000000000000000000\n'
+    ;;
+  ideviceinfo)
+    printf 'Test iPhone\n'
+    ;;
+  avahi-browse)
+    [[ -n ${DELIGHT_AVAHI_LINE:-} ]] && printf '%s\n' "$DELIGHT_AVAHI_LINE"
+    ;;
+  iriunwebcam | notify-send | omarchy-notification-send)
+    ;;
+esac

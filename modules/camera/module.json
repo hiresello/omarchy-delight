@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "id": "camera",
+  "name": "Continuity Camera",
+  "icon": "󰄀",
+  "description": "Use an Android phone or iPhone as a webcam through a named v4l2loopback device.",
+  "packages": {
+    "repo": ["v4l2loopback-dkms", "v4l2loopback-utils", "android-tools", "usbmuxd", "qrencode"],
+    "aur": ["droidcam"]
+  },
+  "units": ["delight-camera.service"],
+  "firewall": [],
+  "capabilities": ["camera", "kernel-module", "usb", "network"],
+  "provides": { "shareTargets": false, "devices": true },
+  "plugin": "plugin",
+  "menu": [
+    { "id": "toggle", "label": "Toggle Continuity Camera", "icon": "󰄀", "action": "delight camera toggle" },
+    { "id": "connect", "label": "Connect phone camera", "action": "delight camera connect" },
+    { "id": "settings", "label": "Continuity Camera settings", "action": "delight camera open" }
+  ]
+}

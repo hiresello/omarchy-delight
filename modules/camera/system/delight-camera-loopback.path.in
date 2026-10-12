@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch Continuity Camera enablement
+
+[Path]
+PathChanged=/run/user/@UID@/omarchy-delight/camera-device
+Unit=delight-camera-loopback-@UID@.service
+
+[Install]
+WantedBy=paths.target

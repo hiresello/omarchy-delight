@@ -1,0 +1,6 @@
+[Unit]
+Description=Reconcile the Continuity Camera v4l2loopback device
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -ec 'SYSFS="$${SYSFS:-/sys}"; WANT="$${WANT:-/run/user/@UID@/omarchy-delight/camera-device/want}"; found=0; if [ -e "$$WANT" ]; then if [ ! -d "$$SYSFS/module/v4l2loopback" ]; then /usr/bin/modprobe v4l2loopback devices=0; fi; for name_file in "$$SYSFS"/devices/virtual/video4linux/video*/name; do [ -f "$$name_file" ] || continue; IFS= read -r label < "$$name_file" || true; if [ "$$label" = "Continuity Camera" ]; then found=1; fi; done; [ "$$found" -eq 1 ] || /usr/bin/v4l2loopback-ctl add -n "Continuity Camera" -x 1; else for name_file in "$$SYSFS"/devices/virtual/video4linux/video*/name; do [ -f "$$name_file" ] || continue; IFS= read -r label < "$$name_file" || true; if [ "$$label" = "Continuity Camera" ]; then video=$$(basename "$$(dirname "$$name_file")"); /usr/bin/v4l2loopback-ctl delete "/dev/$$video"; fi; done; fi'

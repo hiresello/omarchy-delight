@@ -1,0 +1,636 @@
+#!/bin/bash
+
+set -euo pipefail
+
+DELIGHT_ROOT=$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../../.." && pwd)
+# shellcheck source=../../../lib/delight/delight.sh
+source "$DELIGHT_ROOT/lib/delight/delight.sh"
+
+DELIGHT_MODULE_ID=$(basename -- "${BASH_SOURCE[0]}")
+DELIGHT_MODULE_ID=${DELIGHT_MODULE_ID#delight-}
+
+CAMERA_DIR="$DELIGHT_ROOT/modules/camera"
+SYSFS="${DELIGHT_SYSFS:-/sys}"
+MODULES_ROOT="${DELIGHT_CAMERA_MODULES_ROOT:-/usr/lib/modules}"
+SYSTEM_UNIT_DIR="${DELIGHT_CAMERA_SYSTEM_UNIT_DIR:-/etc/systemd/system}"
+CAMERA_NAME="Continuity Camera"
+CAMERA_RUNTIME="${XDG_RUNTIME_DIR:-/run/user/$UID}/omarchy-delight/camera"
+CAMERA_CONNECTION="$CAMERA_RUNTIME/connection.json"
+CAMERA_DISCONNECTING="$CAMERA_RUNTIME/disconnecting"
+CAMERA_UID=$(id -u)
+CAMERA_SYSTEM_SERVICE="delight-camera-loopback-$CAMERA_UID.service"
+CAMERA_SYSTEM_PATH="delight-camera-loopback-$CAMERA_UID.path"
+
+camera_config() {
+  delight_config_get camera "$1"
+}
+
+camera_title() {
+  delight_module_field camera '.name'
+}
+
+camera_icon() {
+  delight_module_field camera '.icon'
+}
+
+camera_system_units_installed() {
+  delight_state_get camera | jq -e '.flags.systemUnits | type == "array" and length == 2' >/dev/null
+}
+
+camera_device_path() {
+  local name_file label
+  for name_file in "$SYSFS"/devices/virtual/video4linux/video*/name; do
+    [[ -f $name_file ]] || continue
+    IFS= read -r label <"$name_file" || true
+    if [[ $label == "$CAMERA_NAME" ]]; then
+      printf '/dev/%s\n' "$(basename -- "$(dirname -- "$name_file")")"
+      return 0
+    fi
+  done
+  return 1
+}
+
+camera_devices_json() {
+  local connection backend transport phone size device slug
+  connection='{}'
+  [[ -f $CAMERA_CONNECTION ]] && connection=$(cat -- "$CAMERA_CONNECTION")
+  backend=$(jq -r '.backend // empty' <<<"$connection")
+  [[ -n $backend ]] || backend=$(camera_config backend)
+  if [[ $backend == "iriun" ]]; then
+    jq -cn '[{id:"camera-iriun-webcam",name:"Iriun Webcam",kind:"phone",transport:"iriun",connected:true}]'
+    return 0
+  fi
+  transport=$(jq -r '.transport // empty' <<<"$connection")
+  phone=$(jq -r '.phone // empty' <<<"$connection")
+  size=$(jq -r '.size // empty' <<<"$connection")
+  device=$(jq -r '.device // empty' <<<"$connection")
+  if [[ -n $transport ]]; then
+    if [[ $transport == "wifi" ]]; then
+      transport="droidcam-wifi"
+    else
+      transport="droidcam-usb"
+    fi
+  fi
+  [[ -n $phone && -n $device ]] || {
+    printf '[]\n'
+    return 0
+  }
+  slug=$(tr '[:upper:]' '[:lower:]' <<<"$phone" | sed -E 's/[^a-z0-9]+/-/g; s/^-|-$//g')
+  [[ -n $slug ]] || slug="phone"
+  jq -cn --arg id "camera-$slug" --arg name "$phone" --arg transport "$transport" \
+    '[{id:$id,name:$name,kind:"phone",transport:$transport,connected:true}]'
+}
+
+camera_status() {
+  local name icon device connection phone size backend actions devices subtitle
+  name=$(camera_title)
+  icon=$(camera_icon)
+  if ! delight_is_installed camera; then
+    delight_status_json --id camera --state needs-setup --title "$name" --subtitle "Not installed" --icon "$icon" \
+      --actions '[{"label":"Install","command":["delight","camera","install"]}]'
+    return 0
+  fi
+  if ! delight_hw_kmod_loadable v4l2loopback; then
+    delight_status_json --id camera --state unsupported --title "$name" --icon "$icon" \
+      --reason "v4l2loopback is not available for kernel $(uname -r); run: delight camera doctor"
+    return 0
+  fi
+  if ! camera_system_units_installed; then
+    delight_status_json --id camera --state error --title "$name" --icon "$icon" \
+      --reason "privileged camera helper is not installed; run: delight camera install"
+    return 0
+  fi
+  if ! delight_module_enabled; then
+    delight_status_json --id camera --state off --title "$name" --subtitle "Off" --icon "$icon"
+    return 0
+  fi
+  device=$(camera_device_path || true)
+  if [[ -z $device ]]; then
+    delight_status_json --id camera --state needs-setup --title "$name" --subtitle "Camera device not ready" --icon "$icon" \
+      --actions '[{"label":"Doctor","command":["delight","camera","doctor"]}]'
+    return 0
+  fi
+  if systemctl --user is-active --quiet delight-camera-stream.service; then
+    connection='{}'
+    [[ -f $CAMERA_CONNECTION ]] && connection=$(cat -- "$CAMERA_CONNECTION")
+    backend=$(jq -r '.backend // empty' <<<"$connection")
+    phone=$(jq -r '.phone // empty' <<<"$connection")
+    size=$(jq -r '.size // empty' <<<"$connection")
+    [[ -n $backend ]] || backend=$(camera_config backend)
+    [[ -n $size ]] || size=$(camera_config size)
+    if [[ $backend == "iriun" ]]; then
+      phone="Iriun Webcam"
+      subtitle="$phone"
+    else
+      [[ -n $phone ]] || phone="Phone camera"
+      subtitle="$phone · $size"
+    fi
+    devices=$(camera_devices_json)
+    actions='[{"label":"Disconnect","command":["delight","camera","disconnect"]},{"label":"Settings","command":["delight","camera","open"]}]'
+    delight_status_json --id camera --state on --title "$name" --subtitle "$subtitle" --icon "$icon" \
+      --actions "$actions" --devices "$devices"
+    return 0
+  fi
+  actions='[{"label":"Connect","command":["delight","camera","connect"]},{"label":"Set up phone","command":["delight","camera","open"]}]'
+  delight_status_json --id camera --state needs-setup --title "$name" --subtitle "Connect your phone" --icon "$icon" \
+    --actions "$actions"
+}
+
+module_status() {
+  camera_status
+}
+
+camera_publish() {
+  delight_module_publish
+}
+
+camera_write_connection() {
+  local json="$1"
+  delight_mkdir "$CAMERA_RUNTIME"
+  printf '%s\n' "$json" | delight_write "$CAMERA_CONNECTION"
+}
+
+camera_install_iriun() {
+  delight_pkg_add camera aur iriunwebcam-bin
+  delight_warn "Iriun's package adds global v4l2loopback options; apps see its own 'Iriun Webcam' device, not 'Continuity Camera'."
+}
+
+camera_render_system_unit() {
+  sed "s/@UID@/$CAMERA_UID/g" "$1"
+}
+
+camera_install_system_units() {
+  local version_output version unit template rendered temp
+  if ! delight_hw_kmod_loadable v4l2loopback; then
+    delight_warn "v4l2loopback is not loadable for the running kernel; skipping privileged camera helper installation"
+    return 0
+  fi
+  for unit in "$CAMERA_SYSTEM_SERVICE" "$CAMERA_SYSTEM_PATH"; do
+    template="$CAMERA_DIR/system/$unit.in"
+    if [[ $unit == "$CAMERA_SYSTEM_SERVICE" ]]; then
+      template="$CAMERA_DIR/system/delight-camera-loopback.service.in"
+    else
+      template="$CAMERA_DIR/system/delight-camera-loopback.path.in"
+    fi
+    rendered=$(camera_render_system_unit "$template")
+    version_output=$(systemctl --version 2>/dev/null | head -n 1 || true)
+    version=${version_output##* }
+    if [[ $version =~ ^[0-9]+$ ]] && ((version < 256)); then
+      if delight_dry; then
+        delight_dry_print sudo install -Dm644 "<rendered unit>" "$SYSTEM_UNIT_DIR/$unit"
+      else
+        temp=$(mktemp)
+        printf '%s\n' "$rendered" | delight_write "$temp" 644
+        delight_run sudo install -Dm644 "$temp" "$SYSTEM_UNIT_DIR/$unit"
+        delight_rm "$temp"
+      fi
+    else
+      printf '%s\n' "$rendered" | delight_run sudo systemctl edit --stdin --force --full "$unit"
+    fi
+  done
+  delight_run sudo systemctl daemon-reload
+  delight_run sudo systemctl enable --now "$CAMERA_SYSTEM_PATH"
+  delight_state_update camera '.flags.systemUnits = $v' \
+    --argjson v "$(jq -cn --arg s "$CAMERA_SYSTEM_SERVICE" --arg p "$CAMERA_SYSTEM_PATH" '[$s,$p]')"
+}
+
+camera_install_kernel_headers() {
+  local pkgbase_file pkgbase header found=false
+  local -A headers=()
+  for pkgbase_file in "$MODULES_ROOT"/*/pkgbase; do
+    [[ -f $pkgbase_file ]] || continue
+    found=true
+    IFS= read -r pkgbase <"$pkgbase_file" || true
+    [[ -n $pkgbase ]] || continue
+    header="$pkgbase-headers"
+    [[ -z ${headers[$header]:-} ]] || continue
+    headers[$header]=1
+    if delight_pkg_present "$pkgbase"; then
+      delight_pkg_add camera repo "$header"
+    fi
+  done
+  [[ $found == true ]] || delight_log "camera: note: no kernel pkgbase files found under $MODULES_ROOT"
+}
+
+module_install() {
+  camera_install_kernel_headers
+  delight_module_default_install
+  if [[ $(camera_config backend) == "iriun" ]]; then
+    camera_install_iriun
+  fi
+  delight_unit_install camera "$CAMERA_DIR/systemd/delight-camera-stream.service"
+  delight_systemd_reload
+  camera_install_system_units
+}
+
+module_uninstall() {
+  if camera_system_units_installed; then
+    delight_run sudo systemctl start "$CAMERA_SYSTEM_SERVICE"
+    delight_run sudo systemctl disable --now "$CAMERA_SYSTEM_PATH"
+    [[ ! -e $SYSTEM_UNIT_DIR/$CAMERA_SYSTEM_SERVICE ]] || delight_run sudo rm -f -- "$SYSTEM_UNIT_DIR/$CAMERA_SYSTEM_SERVICE"
+    [[ ! -e $SYSTEM_UNIT_DIR/$CAMERA_SYSTEM_PATH ]] || delight_run sudo rm -f -- "$SYSTEM_UNIT_DIR/$CAMERA_SYSTEM_PATH"
+    delight_run sudo systemctl daemon-reload
+    delight_state_update camera '.flags.systemUnits = []'
+  fi
+  delight_module_default_uninstall
+}
+
+module_enable() {
+  local i device
+  delight_module_default_enable
+  if delight_dry || ! camera_system_units_installed; then
+    return 0
+  fi
+  for ((i = 0; i < 20; i++)); do
+    device=$(camera_device_path || true)
+    [[ -n $device ]] && break
+    sleep 0.25
+  done
+  [[ -z $device ]] || printf '%s\n' "$device"
+}
+
+module_disable() {
+  delight_unit_stop delight-camera-stream.service
+  delight_module_default_disable
+}
+
+camera_valid_ip() {
+  local address octet
+  local -a parts
+  [[ $1 =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || return 1
+  IFS=. read -r -a parts <<<"$1"
+  ((${#parts[@]} == 4)) || return 1
+  for address in "${parts[@]}"; do
+    [[ $address =~ ^[0-9]{1,3}$ ]] || return 1
+    octet=$((10#$address))
+    ((octet <= 255)) || return 1
+  done
+}
+
+camera_validate_value() {
+  case "$1" in
+    backend) [[ $2 == "droidcam" || $2 == "iriun" ]] ;;
+    connection) [[ $2 == "auto" || $2 == "usb" || $2 == "wifi" ]] ;;
+    ip) [[ -z $2 ]] || camera_valid_ip "$2" ;;
+    port) [[ $2 =~ ^[0-9]+$ ]] && ((10#$2 >= 1 && 10#$2 <= 65535)) ;;
+    size) [[ $2 =~ ^[1-9][0-9]*x[1-9][0-9]*$ ]] ;;
+    *) return 1 ;;
+  esac
+}
+
+module_set() {
+  local key="${1:-}" value="${2:-}"
+  [[ $# == 2 ]] || delight_die "usage: delight camera set <backend|connection|ip|port|size> <value>" 64
+  camera_validate_value "$key" "$value" || delight_die "invalid camera $key: $value" 64
+  if [[ $key == "backend" && $value == "iriun" ]] && ! delight_pkg_present iriunwebcam-bin; then
+    camera_install_iriun
+  fi
+  delight_config_set camera "$key" "$value"
+  camera_publish
+}
+
+module_backend() {
+  [[ $# == 1 ]] || delight_die "usage: delight camera backend droidcam|iriun" 64
+  module_set backend "$1"
+}
+
+camera_phone_usb() {
+  local output model line
+  if delight_has_cmd adb; then
+    output=$(adb devices 2>/dev/null || true)
+    while IFS= read -r line; do
+      [[ $line == *$'\tdevice' ]] || continue
+      model=$(adb shell getprop ro.product.model 2>/dev/null || true)
+      PHONE_NAME=${model:-Android phone}
+      PHONE_TRANSPORT=adb
+      PHONE_IP=""
+      return 0
+    done <<<"$output"
+  fi
+  if delight_has_cmd idevice_id; then
+    output=$(idevice_id -l 2>/dev/null || true)
+    if [[ -n $output ]]; then
+      model=$(ideviceinfo -k DeviceName 2>/dev/null || true)
+      PHONE_NAME=${model:-iPhone}
+      PHONE_TRANSPORT=ios
+      PHONE_IP=""
+      return 0
+    fi
+  fi
+  return 1
+}
+
+camera_phone_mdns() {
+  local services service line sig name address port
+  services=$(camera_config mdnsServices)
+  while IFS= read -r service; do
+    [[ -n $service ]] || continue
+    while IFS= read -r line; do
+      IFS=';' read -r sig _ _ name _ _ _ address port _ <<<"$line"
+      [[ $sig == "=" ]] || continue
+      camera_valid_ip "$address" || continue
+      [[ $port =~ ^[0-9]+$ ]] || continue
+      PHONE_NAME=${name:-Phone camera}
+      PHONE_IP="$address"
+      PHONE_PORT="$port"
+      PHONE_TRANSPORT=wifi
+      return 0
+    done < <(timeout 3 avahi-browse -rptk "$service" 2>/dev/null || true)
+  done < <(jq -r '.[]' <<<"$services")
+  return 1
+}
+
+module_connect() {
+  local mode ip_arg="" backend device ip port size phone json
+  mode=$(camera_config connection)
+  backend=$(camera_config backend)
+  if (($# > 0)); then
+    case "$1" in
+      --usb)
+        mode=usb
+        shift
+        ;;
+      --wifi)
+        mode=wifi
+        shift
+        if (($# > 0)); then
+          ip_arg="$1"
+          shift
+        fi
+        ;;
+      *) delight_die "usage: delight camera connect [--usb|--wifi [IP]]" 64 ;;
+    esac
+  fi
+  (($# == 0)) || delight_die "usage: delight camera connect [--usb|--wifi [IP]]" 64
+  delight_module_enabled || delight_die "enable Continuity Camera first"
+  device=$(camera_device_path || true)
+  [[ -n $device ]] || delight_die "camera device is not ready; run delight camera doctor"
+  if [[ $backend == "droidcam" ]]; then
+    delight_has_cmd droidcam-cli || delight_die "droidcam-cli is not installed; run delight camera install"
+    PHONE_NAME=""
+    PHONE_TRANSPORT=""
+    PHONE_IP=""
+    PHONE_PORT=$(camera_config port)
+    if [[ $mode == "usb" || $mode == "auto" ]]; then
+      if camera_phone_usb; then
+        :
+      elif [[ $mode == "usb" ]]; then
+        delight_notify camera "No phone found" "Connect or trust your phone, then try delight camera connect."
+        delight_module_publish
+        delight_die "no USB phone found; run delight camera doctor" 3
+      fi
+    fi
+    if [[ -z $PHONE_TRANSPORT ]]; then
+      if [[ $mode == "usb" ]]; then
+        delight_die "no USB phone found; run delight camera doctor" 3
+      fi
+      if [[ -n $ip_arg ]]; then
+        camera_valid_ip "$ip_arg" || delight_die "invalid camera IP: $ip_arg" 64
+        PHONE_IP=$ip_arg
+        PHONE_TRANSPORT=wifi
+        PHONE_NAME="Phone camera"
+      else
+        ip=$(camera_config ip)
+        if [[ -n $ip ]]; then
+          PHONE_IP=$ip
+          PHONE_TRANSPORT=wifi
+          PHONE_NAME="Phone camera"
+        elif camera_phone_mdns; then
+          :
+        else
+          delight_module_publish
+          delight_notify camera "No phone found" "Connect by USB, set an IP, or discover a phone on Wi-Fi."
+          delight_die "no phone found; set delight camera set ip <IP> or connect by USB" 3
+        fi
+      fi
+    fi
+    ip=$PHONE_IP
+    port=${PHONE_PORT:-$(camera_config port)}
+    size=$(camera_config size)
+    phone=$PHONE_NAME
+    json=$(jq -cn --arg backend "$backend" --arg transport "$PHONE_TRANSPORT" --arg ip "$ip" \
+      --argjson port "$port" --arg size "$size" --arg device "$device" --arg phone "$phone" \
+      '{backend:$backend,transport:$transport,ip:$ip,port:$port,size:$size,device:$device,phone:$phone}')
+  elif [[ $backend == "iriun" ]]; then
+    delight_has_cmd iriunwebcam || delight_die "iriunwebcam is not installed; run delight camera backend iriun"
+    json='{"backend":"iriun"}'
+    phone="Iriun Webcam"
+    size=""
+  else
+    delight_die "unsupported camera backend: $backend"
+  fi
+  camera_write_connection "$json"
+  delight_run systemctl --user restart delight-camera-stream.service || true
+  if delight_dry; then
+    delight_module_publish
+    return 0
+  fi
+  for ((port = 0; port < 16; port++)); do
+    systemctl --user is-active --quiet delight-camera-stream.service && break
+    sleep 0.25
+  done
+  if systemctl --user is-active --quiet delight-camera-stream.service; then
+    if [[ $backend == "droidcam" && $PHONE_TRANSPORT == "wifi" ]]; then
+      delight_config_set camera ip "$PHONE_IP"
+    fi
+    camera_publish
+    delight_notify camera "Continuity Camera connected" "$phone · $size"
+  else
+    camera_publish
+    delight_notify camera "Continuity Camera connection failed" "Check the phone connection and run delight camera doctor."
+    return 1
+  fi
+}
+
+module_disconnect() {
+  delight_mkdir "$CAMERA_RUNTIME"
+  delight_run touch "$CAMERA_DISCONNECTING"
+  delight_run systemctl --user stop delight-camera-stream.service || true
+  delight_rm "$CAMERA_DISCONNECTING"
+  delight_rm "$CAMERA_CONNECTION"
+  camera_publish
+}
+
+module__stream() {
+  local connection backend device size ip port transport
+  [[ -f $CAMERA_CONNECTION ]] || delight_die "camera connection is not configured"
+  connection=$(cat -- "$CAMERA_CONNECTION")
+  backend=$(jq -r '.backend' <<<"$connection")
+  if [[ $backend == "iriun" ]]; then
+    exec iriunwebcam --tray
+  fi
+  transport=$(jq -r '.transport' <<<"$connection")
+  device=$(jq -r '.device' <<<"$connection")
+  size=$(jq -r '.size' <<<"$connection")
+  ip=$(jq -r '.ip' <<<"$connection")
+  port=$(jq -r '.port' <<<"$connection")
+  case "$transport" in
+    adb | ios) exec droidcam-cli -nocontrols "-dev=$device" "-size=$size" "$transport" "$port" ;;
+    wifi) exec droidcam-cli -nocontrols "-dev=$device" "-size=$size" "$ip" "$port" ;;
+    *) delight_die "unknown camera transport: $transport" ;;
+  esac
+}
+
+function module__stream-stopped() {
+  if [[ ! -e $CAMERA_DISCONNECTING ]]; then
+    delight_notify camera "Phone camera disconnected" "Connect your phone to resume Continuity Camera."
+  fi
+  delight_rm "$CAMERA_CONNECTION"
+  camera_publish
+}
+
+module_devices() {
+  [[ ${1:-} == "--json" ]] || delight_die "usage: delight camera devices --json" 64
+  camera_status | jq -c '.devices'
+}
+
+module_panel() {
+  [[ ${1:-} == "--json" ]] || delight_die "usage: delight camera panel --json" 64
+  local android ios iriun qr_android qr_ios runtime
+  android="https://play.google.com/store/apps/details?id=com.dev47apps.droidcam"
+  ios="https://apps.apple.com/app/id1510258102"
+  iriun="https://iriun.com/"
+  qr_android=""
+  qr_ios=""
+  runtime="$CAMERA_RUNTIME"
+  if delight_has_cmd qrencode; then
+    delight_mkdir "$runtime"
+    qr_android="$runtime/qr-android.png"
+    qr_ios="$runtime/qr-ios.png"
+    [[ -f $qr_android ]] || delight_qr "$android" "$qr_android" >/dev/null
+    [[ -f $qr_ios ]] || delight_qr "$ios" "$qr_ios" >/dev/null
+    [[ -f $qr_android ]] || qr_android=""
+    [[ -f $qr_ios ]] || qr_ios=""
+  fi
+  jq -cn --argjson status "$(camera_status)" --arg backend "$(camera_config backend)" \
+    --arg connection "$(camera_config connection)" --arg ip "$(camera_config ip)" \
+    --arg port "$(camera_config port)" --arg size "$(camera_config size)" \
+    --arg android "$android" --arg ios "$ios" --arg iriun "$iriun" \
+    --arg qr_android "$qr_android" --arg qr_ios "$qr_ios" \
+    '{status:$status,config:{backend:$backend,connection:$connection,ip:$ip,port:($port|tonumber),size:$size},apps:{android:$android,ios:$ios,iriun:$iriun},qr:{android:(if $qr_android == "" then null else $qr_android end),ios:(if $qr_ios == "" then null else $qr_ios end)}}'
+}
+
+module_open() {
+  local payload
+  payload=$(module_panel --json)
+  delight_run "$DELIGHT_ROOT/bin/delight" ui summon delight.camera "$payload"
+}
+
+module_doctor() {
+  local fix=0 unsupported=0 action=0 rc package_output pkg_rc pkgbase_file pkgbase header
+  local module_path sb_file sig_file sb_byte sig_enforce device backend name_file label
+  package_output=$(delight_module_default_doctor 2>&1) && pkg_rc=0 || pkg_rc=$?
+  if ((pkg_rc == 0)); then
+    printf 'ok packages\n'
+  else
+    printf 'fix packages: %s\n' "$package_output"
+    fix=1
+  fi
+  local found_kernel=false
+  for pkgbase_file in "$MODULES_ROOT"/*/pkgbase; do
+    [[ -f $pkgbase_file ]] || continue
+    found_kernel=true
+    IFS= read -r pkgbase <"$pkgbase_file" || true
+    [[ -n $pkgbase ]] || continue
+    header="$pkgbase-headers"
+    if delight_pkg_present "$header"; then
+      printf 'ok headers: %s\n' "$header"
+    else
+      printf 'fix headers: install %s\n' "$header"
+      fix=1
+    fi
+  done
+  [[ $found_kernel == true ]] || printf 'note no installed kernel pkgbase found under %s\n' "$MODULES_ROOT"
+  if module_path=$(modinfo -n v4l2loopback 2>/dev/null) && [[ -n $module_path || -d $SYSFS/module/v4l2loopback ]]; then
+    printf 'ok v4l2loopback built for %s\n' "$(uname -r)"
+  elif [[ -d $SYSFS/module/v4l2loopback ]]; then
+    printf 'ok v4l2loopback loaded for %s\n' "$(uname -r)"
+  else
+    local kernel_headers=false
+    for pkgbase_file in "$MODULES_ROOT"/*/pkgbase; do
+      [[ -f $pkgbase_file ]] || continue
+      IFS= read -r pkgbase <"$pkgbase_file" || true
+      [[ -n $pkgbase ]] || continue
+      delight_pkg_present "$pkgbase-headers" && kernel_headers=true
+    done
+    if [[ $kernel_headers == true ]]; then
+      printf 'unsupported DKMS did not build v4l2loopback for %s; see dkms status\n' "$(uname -r)"
+      unsupported=1
+    else
+      printf 'fix v4l2loopback is not built and kernel headers are missing\n'
+      fix=1
+    fi
+  fi
+  sb_file="$SYSFS/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-e98c0b4185b4"
+  sig_file="$SYSFS/module/module/parameters/sig_enforce"
+  sb_byte=""
+  [[ -f $sb_file ]] && sb_byte=$(od -An -t u1 -j 4 -N 1 "$sb_file" | tr -d '[:space:]')
+  sig_enforce=""
+  [[ -f $sig_file ]] && IFS= read -r sig_enforce <"$sig_file" || true
+  if [[ $sb_byte == "1" && $sig_enforce == "Y" && ! -d $SYSFS/module/v4l2loopback ]]; then
+    printf 'unsupported Secure Boot enforces signed modules; sign v4l2loopback or disable enforcement\n'
+    unsupported=1
+  elif [[ $sb_byte == "1" ]]; then
+    printf 'note Secure Boot is enabled\n'
+  else
+    printf 'ok Secure Boot is not enforcing unsigned modules\n'
+  fi
+  if camera_system_units_installed && systemctl is-enabled "$CAMERA_SYSTEM_PATH" >/dev/null 2>&1; then
+    printf 'ok privileged camera helper installed and enabled\n'
+  else
+    printf 'fix privileged camera helper missing or path unit disabled; run delight camera install\n'
+    fix=1
+  fi
+  device=$(camera_device_path || true)
+  if delight_module_enabled; then
+    if [[ -n $device ]]; then
+      printf 'ok camera device: %s\n' "$device"
+    else
+      printf 'fix camera device missing; inspect systemctl status %s\n' "$CAMERA_SYSTEM_SERVICE"
+      fix=1
+    fi
+  else
+    printf 'note camera module is disabled\n'
+  fi
+  backend=$(camera_config backend)
+  if [[ $backend == "iriun" ]]; then
+    if delight_has_cmd iriunwebcam; then
+      printf 'ok backend: iriunwebcam\n'
+    else
+      printf 'fix iriunwebcam is not installed; run delight camera backend iriun\n'
+      fix=1
+    fi
+  elif delight_has_cmd droidcam-cli; then
+    printf 'ok backend: droidcam-cli\n'
+  else
+    printf 'fix droidcam-cli is not installed; run delight camera install\n'
+    fix=1
+  fi
+  if ! delight_has_cmd adb || ! delight_has_cmd idevice_id; then
+    printf 'note USB tools missing (adb and idevice_id are optional for Wi-Fi)\n'
+  else
+    printf 'ok USB tools available\n'
+  fi
+  [[ ! -f /etc/modules-load.d/droidcam.conf ]] || printf 'note droidcam package modules-load entry references v4l2loopback-dc; left untouched\n'
+  for name_file in "$SYSFS"/devices/virtual/video4linux/video*/name; do
+    [[ -f $name_file ]] || continue
+    IFS= read -r label <"$name_file" || true
+    [[ -n $label && $label != "$CAMERA_NAME" ]] && printf 'note coexisting device: %s (untouched)\n' "$label"
+  done
+  if [[ ! -f $CAMERA_CONNECTION ]] || ! systemctl --user is-active --quiet delight-camera-stream.service; then
+    printf 'action connect your phone: delight camera connect\n'
+    action=1
+  fi
+  if ((unsupported)); then
+    rc=2
+  elif ((fix)); then
+    rc=1
+  elif ((action)); then
+    rc=3
+  else
+    rc=0
+  fi
+  return "$rc"
+}
+
+delight_module_main "$@"

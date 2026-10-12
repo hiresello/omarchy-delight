@@ -1,0 +1,10 @@
+[Unit]
+Description=Continuity Camera phone stream
+PartOf=delight-camera.service
+After=delight-camera.service
+
+[Service]
+Type=simple
+Restart=no
+ExecStart=%h/.local/bin/delight camera _stream
+ExecStopPost=%h/.local/bin/delight camera _stream-stopped

@@ -1,0 +1,9 @@
+{
+  "enabled": false,
+  "backend": "droidcam",
+  "connection": "auto",
+  "ip": "",
+  "port": 4747,
+  "size": "1280x720",
+  "mdnsServices": ["_droidcam._tcp", "_droidcamobs._tcp"]
+}
