@@ -1,0 +1,14 @@
+#!/bin/bash
+
+set -euo pipefail
+
+DELIGHT_ROOT=$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../../.." && pwd)
+# shellcheck source=../../../lib/delight/delight.sh
+source "$DELIGHT_ROOT/lib/delight/delight.sh"
+# shellcheck source=../lib/phone.sh
+source "$DELIGHT_ROOT/modules/phone/lib/phone.sh"
+
+DELIGHT_MODULE_ID=$(basename -- "${BASH_SOURCE[0]}")
+DELIGHT_MODULE_ID=${DELIGHT_MODULE_ID#delight-}
+
+delight_module_main "$@"

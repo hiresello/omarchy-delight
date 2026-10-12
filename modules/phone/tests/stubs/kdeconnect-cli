@@ -1,0 +1,3 @@
+#!/bin/bash
+printf 'kdeconnect-cli %s\n' "$*" >>"${DELIGHT_STUB_LOG:-/dev/null}"
+exit "${DELIGHT_PHONE_CLI_EXIT:-0}"

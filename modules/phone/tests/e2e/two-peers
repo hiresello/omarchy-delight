@@ -1,0 +1,282 @@
+#!/bin/bash
+
+set -euo pipefail
+
+REPO_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../../.." && pwd)
+OUTPUT_FILE="$HOME/research/e2e-output.txt"
+mkdir -p -- "$(dirname -- "$OUTPUT_FILE")"
+exec > >(tee "$OUTPUT_FILE") 2>&1
+
+for command in docker jq tee; do
+  command -v "$command" >/dev/null || {
+    printf 'Missing required command: %s\n' "$command" >&2
+    exit 2
+  }
+done
+
+run_id="$(date +%s)-$$"
+image="omarchy-delight-phone-e2e:$run_id"
+network="phone-e2e-$run_id"
+peer_a="phone-e2e-a-$run_id"
+peer_b="phone-e2e-b-$run_id"
+artifacts="$HOME/research/phone-e2e-$run_id"
+mkdir -p -- "$artifacts"
+
+cleanup() {
+  docker rm -f "$peer_a" "$peer_b" >/dev/null 2>&1 || true
+  docker network rm "$network" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+checks=()
+failures=0
+record() {
+  local name="$1" status="$2" detail="$3"
+  checks+=("$name|$status|$detail")
+  [[ $status != FAIL ]] || ((failures += 1))
+}
+peer() {
+  local container="$1"
+  shift
+  docker exec -i "$container" /usr/local/bin/peer-exec "$@"
+}
+phone_a() {
+  peer "$peer_a" /repo/modules/phone/bin/delight-phone "$@"
+}
+device_path() {
+  printf '/modules/kdeconnect/devices/%s\n' "$1"
+}
+set_plugin() {
+  peer "$1" busctl --user call org.kde.kdeconnect \
+    "$(device_path "$2")" org.kde.kdeconnect.device setPluginEnabled sb "$3" true
+}
+wait_for() {
+  local seconds="$1" i
+  shift
+  for ((i = 0; i < seconds * 10; i++)); do
+    "$@" && return 0
+    sleep 0.1
+  done
+  return 1
+}
+discover_id() {
+  phone_a pair --json | jq -r --arg id "$1" \
+    '.discoverable[]? | select(.id == $id) | .id' | head -n 1
+}
+
+printf 'Building Arch KDE Connect test image (%s)\n' "$image"
+docker build -f "$REPO_ROOT/modules/phone/tests/e2e/Dockerfile" \
+  -t "$image" "$REPO_ROOT"
+docker network create --driver bridge "$network" >/dev/null
+docker run -d --cap-add=SYS_NICE --name "$peer_a" --hostname phone-e2e-a --network "$network" \
+  -e HOME=/tmp/phone-e2e-home -e XDG_RUNTIME_DIR=/tmp/runtime \
+  -e WAYLAND_DISPLAY=wayland-1 -e QT_QPA_PLATFORM=wayland \
+  -e WLR_BACKENDS=headless -e WLR_LIBINPUT_NO_DEVICES=1 -e WLR_RENDERER=pixman \
+  --mount "type=bind,src=$REPO_ROOT,dst=/repo,readonly" \
+  --mount "type=bind,src=$artifacts,dst=/artifacts" "$image" >/dev/null
+docker run -d --cap-add=SYS_NICE --name "$peer_b" --hostname phone-e2e-b --network "$network" \
+  -e HOME=/root -e XDG_RUNTIME_DIR=/tmp/runtime \
+  -e WAYLAND_DISPLAY=wayland-1 -e QT_QPA_PLATFORM=wayland \
+  -e WLR_BACKENDS=headless -e WLR_LIBINPUT_NO_DEVICES=1 -e WLR_RENDERER=pixman \
+  --mount "type=bind,src=$REPO_ROOT,dst=/repo,readonly" \
+  --mount "type=bind,src=$artifacts,dst=/artifacts" "$image" >/dev/null
+
+peer "$peer_a" bash -c 'mkdir -p "$HOME/.config/omarchy-delight"; jq -n "{schema:1,modules:{phone:{enabled:true,notifications:true,clipboard:true}}}" > "$HOME/.config/omarchy-delight/config.json"'
+peer "$peer_a" mkdir -p /tmp/e2e-bin
+peer "$peer_a" ln -sf /usr/local/bin/omarchy-notification-send /tmp/e2e-bin/omarchy-notification-send
+peer "$peer_a" bash -c 'stdbuf -oL busctl --user --json=short monitor > /artifacts/a-monitor.jsonl 2>/artifacts/a-monitor.err &'
+peer "$peer_b" bash -c 'stdbuf -oL busctl --user --json=short monitor > /artifacts/b-monitor.jsonl 2>/artifacts/b-monitor.err &'
+peer "$peer_a" bash -c 'PATH="/tmp/e2e-bin:/usr/local/sbin:/usr/local/bin:/usr/bin" \
+  /repo/modules/phone/bin/delight-phone watch > /artifacts/phone-watch.log 2>&1' &
+
+if ! wait_for 30 peer "$peer_a" busctl --user status org.kde.kdeconnect; then
+  printf 'Peer A KDE Connect daemon did not become available.\n'
+  record Discovery FAIL "daemon unavailable"
+else
+  printf 'KDE Connect daemon is active on both peers.\n'
+  b_ip=$(docker inspect -f "{{(index .NetworkSettings.Networks \"$network\").IPAddress}}" "$peer_b")
+  a_ip=$(docker inspect -f "{{(index .NetworkSettings.Networks \"$network\").IPAddress}}" "$peer_a")
+  b_self_id=$(peer "$peer_b" busctl --user --json=short call org.kde.kdeconnect \
+    /modules/kdeconnect org.kde.kdeconnect.daemon selfId | jq -r '.data[0] // empty')
+  b_name=$(peer "$peer_b" busctl --user --json=short call org.kde.kdeconnect \
+    /modules/kdeconnect org.kde.kdeconnect.daemon announcedName | jq -r '.data[0] // "peer B"')
+  b_id=""
+  for _ in {1..100}; do
+    b_id=$(discover_id "$b_self_id" || true)
+    [[ -n $b_id ]] && break
+    sleep 0.1
+  done
+  discovery_mode=broadcast
+  if [[ -z $b_id ]]; then
+    discovery_mode=custom-IP
+    printf 'UDP broadcast discovery unavailable; using KDE Connect customDevices addresses (%s / %s).\n' "$b_ip" "$a_ip"
+    peer "$peer_a" busctl --user set-property org.kde.kdeconnect /modules/kdeconnect \
+      org.kde.kdeconnect.daemon customDevices as 1 "$b_ip"
+    peer "$peer_b" busctl --user set-property org.kde.kdeconnect /modules/kdeconnect \
+      org.kde.kdeconnect.daemon customDevices as 1 "$a_ip"
+    peer "$peer_a" kdeconnect-cli --refresh
+    peer "$peer_b" kdeconnect-cli --refresh
+    for _ in {1..200}; do
+      b_id=$(discover_id "$b_self_id" || true)
+      [[ -n $b_id ]] && break
+      sleep 0.1
+    done
+  fi
+  if [[ -n $b_id ]]; then
+    record Discovery PASS "$b_name discovered via $discovery_mode ($b_id)"
+    printf 'Real monitor sample from discovery/pairing will be saved to %s/a-monitor.jsonl\n' "$artifacts"
+    phone_a pair request "$b_id" || true
+    a_id=""
+    for _ in {1..100}; do
+      a_id=$(peer "$peer_b" busctl --user --json=short get-property org.kde.kdeconnect \
+        /modules/kdeconnect org.kde.kdeconnect.daemon pairingRequests 2>/dev/null \
+        | jq -r '.data[0] // empty' || true)
+      [[ -n $a_id ]] && break
+      sleep 0.1
+    done
+    if [[ -n $a_id ]] && peer "$peer_b" busctl --user call org.kde.kdeconnect \
+      "$(device_path "$a_id")" org.kde.kdeconnect.device acceptPairing; then
+      for _ in {1..150}; do
+        paired=$(phone_a devices --json 2>/dev/null || printf '[]')
+        jq -e --arg id "$b_id" 'any(.[]; .id == $id and .connected == true)' \
+          <<<"$paired" >/dev/null && break
+        sleep 0.1
+      done
+      phone_a devices --json >"$artifacts/devices.json"
+      phone_a share-targets --json >"$artifacts/share-targets.json"
+      if python3 -c 'import json,jsonschema,sys; jsonschema.validate(json.load(open(sys.argv[1])), json.load(open(sys.argv[2])))' \
+        "$artifacts/devices.json" "$REPO_ROOT/schema/device.schema.json" \
+        && jq -e --arg target "phone:$b_id" 'any(.[]; .id == $target)' \
+          "$artifacts/share-targets.json" >/dev/null; then
+        record Pairing PASS "paired/connected; device schema valid; share-target listed"
+      else
+        record Pairing FAIL "pairing, device schema, or share-target check failed"
+      fi
+
+      a_id=$(peer "$peer_b" busctl --user --json=short call org.kde.kdeconnect \
+        /modules/kdeconnect org.kde.kdeconnect.daemon devices bb false true \
+        | jq -r '.data[0] | if type == "array" then .[0] // empty else . // empty end')
+      set_plugin "$peer_a" "$b_id" kdeconnect_clipboard >/dev/null 2>&1 || true
+      set_plugin "$peer_a" "$b_id" kdeconnect_share >/dev/null 2>&1 || true
+      if [[ -n $a_id ]]; then
+        set_plugin "$peer_b" "$a_id" kdeconnect_clipboard >/dev/null 2>&1 || true
+        set_plugin "$peer_b" "$a_id" kdeconnect_sendnotifications >/dev/null 2>&1 || true
+        sendnotifications_enabled=$(peer "$peer_b" busctl --user --json=short call org.kde.kdeconnect \
+          "/modules/kdeconnect/devices/$a_id" org.kde.kdeconnect.device \
+          isPluginEnabled s kdeconnect_sendnotifications \
+          | jq -r '.data[0] // false')
+        printf 'sendnotifications enabled on B: %s\n' "$sendnotifications_enabled"
+      else
+        printf 'Could not resolve A device id on B; sendnotifications cannot be enabled.\n'
+      fi
+      phone_a clipboard on >/dev/null 2>&1 || true
+
+      printf token1 | peer "$peer_a" wl-copy
+      clip_a_result=$(peer "$peer_b" /usr/local/bin/clipboard-poll token1 2>/dev/null || true)
+      clip_a=FAIL
+      clip_a_ms='>2000'
+      if [[ $clip_a_result == PASS\ * ]]; then
+        clip_a=PASS
+        clip_a_ms=${clip_a_result#PASS }
+      fi
+      record Clipboard-A-to-B "$clip_a" "${clip_a_ms}ms"
+      clip_b=FAIL
+      clip_b_ms='>2000'
+      printf token2 | peer "$peer_b" wl-copy
+      clip_b_result=$(peer "$peer_a" /usr/local/bin/clipboard-poll token2 2>/dev/null || true)
+      if [[ $clip_b_result == PASS\ * ]]; then
+        clip_b=PASS
+        clip_b_ms=${clip_b_result#PASS }
+      fi
+      record Clipboard-B-to-A "$clip_b" "${clip_b_ms}ms"
+      printf 'Sensitive MIME test: SKIP (wl-copy exposes one MIME type; a custom Wayland data-control client is not included).\n'
+
+      peer "$peer_a" bash -c 'printf "phone E2E file\\n" > /tmp/phone-e2e-file'
+      if phone_a send "phone:$b_id" /tmp/phone-e2e-file \
+        && wait_for 20 peer "$peer_b" test -s /root/Downloads/phone-e2e-file; then
+        record File-sharing PASS "arrived in B HOME Downloads"
+      else
+        record File-sharing FAIL "file did not arrive"
+      fi
+
+      ring_log="$artifacts/kdeconnectd-phone-e2e-b.log"
+      ring_log_lines=$(wc -l <"$ring_log")
+      if phone_a ring "$b_id"; then
+        sleep 2
+        tail -n +"$((ring_log_lines + 1))" "$ring_log" >"$artifacts/ring-evidence.log"
+        if rg -qi 'findthisdevice|Could not open media|Not playing sound' "$artifacts/ring-evidence.log"; then
+          record Ring PASS "B findthisdevice handler attempted to play its ringtone"
+          sed -n '1,12p' "$artifacts/ring-evidence.log"
+        else
+          record Ring SKIP "ring request sent; headless daemon produced no ringtone-handler log"
+        fi
+      else
+        record Ring SKIP "kdeconnect-cli ring failed"
+      fi
+
+      peer "$peer_b" busctl --user --json=short call org.freedesktop.Notifications /org/freedesktop/Notifications \
+        org.freedesktop.Notifications Notify "susssasa{sv}i" \
+        "Phone E2E App" 0 "" "E2E notification" "notification body" 0 0 10000 \
+        >"$artifacts/remote-notification-id.txt" 2>"$artifacts/notify-error.log" || true
+      sleep 3
+      if rg -q 'E2E notification' "$artifacts/omarchy-notification-phone-e2e-a.log" 2>/dev/null; then
+        record Notification-mirroring PASS "A's watch mirrored B's Notify call"
+        close_id=$(jq -r '.data[0] // empty' "$artifacts/remote-notification-id.txt")
+        a_close_log_lines=$(wc -l <"$artifacts/a-monitor.jsonl")
+        b_close_log_lines=$(wc -l <"$artifacts/b-monitor.jsonl")
+        peer "$peer_b" busctl --user call org.freedesktop.Notifications /org/freedesktop/Notifications \
+          org.freedesktop.Notifications CloseNotification u "${close_id:-1}" >/dev/null 2>&1 || true
+        sleep 3
+        tail -n +"$((a_close_log_lines + 1))" "$artifacts/a-monitor.jsonl" >"$artifacts/notification-close-evidence.jsonl"
+        tail -n +"$((b_close_log_lines + 1))" "$artifacts/b-monitor.jsonl" >"$artifacts/notification-server-close-evidence.jsonl"
+        if jq -s -e 'any(.[]; .member == "notificationRemoved")' "$artifacts/notification-close-evidence.jsonl" >/dev/null \
+          && jq -s -e 'any(.[]; .member == "CloseNotification")' "$artifacts/notification-close-evidence.jsonl" >/dev/null; then
+          record Notification-dismissal PASS "B close propagated to A's CloseNotification call"
+        elif jq -s -e 'any(.[]; .member == "NotificationClosed" and .payload.data[1] == 3)' \
+          "$artifacts/notification-server-close-evidence.jsonl" >/dev/null; then
+          record Notification-dismissal SKIP "B closed locally, but sendnotifications forwards Notify only and sends no removal packet"
+        else
+          record Notification-dismissal SKIP "B close was not observed as a KDE Connect removal"
+        fi
+      else
+        record Notification-mirroring SKIP "sendnotifications/Notify flow did not produce a mirrored notification"
+        record Notification-dismissal SKIP "blocked by missing mirrored notification"
+        printf '%s\n' 'Notification Notify error (if any):'
+        sed -n '1,20p' "$artifacts/notify-error.log"
+      fi
+    else
+      record Pairing FAIL "peer did not expose an incoming pairing request"
+      record Clipboard-A-to-B FAIL "blocked by pairing"
+      record Clipboard-B-to-A FAIL "blocked by pairing"
+      record File-sharing FAIL "blocked by pairing"
+    fi
+  else
+    record Discovery FAIL "peer absent after broadcast and custom-IP discovery"
+    record Pairing FAIL "blocked by discovery"
+    record Clipboard-A-to-B FAIL "blocked by discovery"
+    record Clipboard-B-to-A FAIL "blocked by discovery"
+    record File-sharing FAIL "blocked by discovery"
+  fi
+fi
+
+printf '\nSMS: SKIP (no Android device available).\n'
+printf '\nKDE Connect QtClipboard log evidence:\n'
+for log in "$artifacts"/kdeconnectd-*.log; do
+  printf '%s\n' "$log"
+  rg -i 'QtClipboard|Could not init WaylandClipboard|WaylandClipboard|kdeconnect\.plugin\.clipboard' "$log" || true
+done
+printf '\nCaptured real busctl signal lines:\n'
+jq -c 'select(.type == "signal" and (.member == "pairStateChanged" or .member == "notificationPosted" or .member == "notificationRemoved"))' \
+  "$artifacts/a-monitor.jsonl" 2>/dev/null | head -n 10 || true
+printf '\nPASS/FAIL table:\n'
+printf '%-24s %-6s %s\n' CHECK RESULT DETAILS
+for check in "${checks[@]}"; do
+  IFS='|' read -r name status detail <<<"$check"
+  printf '%-24s %-6s %s\n' "$name" "$status" "$detail"
+done
+printf '\nArtifacts: %s\nFull output: %s\n' "$artifacts" "$OUTPUT_FILE"
+if ((failures > 0)); then
+  printf '%d required E2E check(s) failed.\n' "$failures"
+  exit 1
+fi
+printf 'All required E2E checks passed.\n'

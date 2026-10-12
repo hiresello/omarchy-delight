@@ -1,0 +1,84 @@
+{
+  "calls": {
+    "devices_paired": { "type": "as", "data": ["pixel8", "iphone"] },
+    "devices_reachable": { "type": "as", "data": ["pixel8"] },
+    "devices_discoverable": { "type": "as", "data": ["newphone"] },
+    "names_paired": {
+      "type": "a{ss}",
+      "data": [
+        { "type": "{ss}", "data": ["pixel8", "Pixel 8"] },
+        { "type": "{ss}", "data": ["iphone", "iPhone"] },
+        { "type": "{ss}", "data": ["request1", "New Phone"] }
+      ]
+    },
+    "names_reachable": { "type": "a{ss}", "data": [{ "type": "{ss}", "data": ["pixel8", "Pixel 8"] }] },
+    "names_discoverable": { "type": "a{ss}", "data": [{ "type": "{ss}", "data": ["newphone", "New Phone"] }] },
+    "active_conversations": {
+      "type": "av",
+      "data": [
+        {
+          "type": "(isaxiiixxav)",
+          "data": [1, "Hello from the phone", [{ "type": "(s)", "data": ["+15551234567"] }], 1728600000000, 1, 1, 42, 7, 0, []]
+        },
+        {
+          "type": "(isaxiiixxav)",
+          "data": [1, "Reply from the computer", [{ "type": "(s)", "data": ["+15551234567"] }], 1728600001000, 2, 1, 42, 8, 0, []]
+        }
+      ]
+    }
+  },
+  "daemonProperties": {
+    "announcedName": { "type": "s", "data": ["Delight PC"] },
+    "selfId": { "type": "s", "data": ["computer-id"] },
+    "pairingRequests": { "type": "as", "data": ["request1"] }
+  },
+  "devices": {
+    "pixel8": {
+      "type": { "type": "s", "data": ["smartphone"] },
+      "isReachable": { "type": "b", "data": [true] },
+      "hasBattery": { "type": "b", "data": [true] },
+      "charge": { "type": "i", "data": [82] },
+      "isCharging": { "type": "b", "data": [true] },
+      "supportedPlugins": {
+        "type": "as",
+        "data": ["kdeconnect_sms", "kdeconnect_notifications", "kdeconnect_share", "kdeconnect_clipboard", "kdeconnect_findmyphone"]
+      },
+      "loadedPlugins": {
+        "type": "as",
+        "data": ["kdeconnect_sms", "kdeconnect_notifications", "kdeconnect_share", "kdeconnect_clipboard"]
+      }
+    },
+    "iphone": {
+      "type": { "type": "s", "data": ["smartphone"] },
+      "isReachable": { "type": "b", "data": [false] },
+      "hasBattery": { "type": "b", "data": [false] },
+      "charge": { "type": "i", "data": [0] },
+      "isCharging": { "type": "b", "data": [false] },
+      "supportedPlugins": {
+        "type": "as",
+        "data": ["kdeconnect_clipboard", "kdeconnect_share", "kdeconnect_findmyphone"]
+      },
+      "loadedPlugins": {
+        "type": "as",
+        "data": ["kdeconnect_clipboard", "kdeconnect_share"]
+      }
+    },
+    "newphone": {
+      "type": { "type": "s", "data": ["smartphone"] },
+      "isReachable": { "type": "b", "data": [true] },
+      "verificationKey": { "type": "s", "data": ["ABCD-1234"] }
+    },
+    "request1": {
+      "type": { "type": "s", "data": ["smartphone"] },
+      "verificationKey": { "type": "s", "data": ["PAIR-5678"] }
+    }
+  },
+  "notificationProperties": {
+    "appName": { "type": "s", "data": ["Messages"] },
+    "title": { "type": "s", "data": ["New message"] },
+    "text": { "type": "s", "data": ["Hello there"] },
+    "silent": { "type": "b", "data": [false] },
+    "hasIcon": { "type": "b", "data": [false] },
+    "iconPath": { "type": "s", "data": [""] }
+  }
+}
