@@ -18,5 +18,28 @@
   ],
   "devices": [],
   "reason": null,
-  "updated": "2026-10-12T09:00:00Z"
+  "updated": "2026-10-12T09:00:00Z",
+  "media": {
+    "title": "Midnight City",
+    "subtitle": "M83 · Juan's iPhone",
+    "playing": true,
+    "previous": [
+      "delight",
+      "airplay",
+      "media",
+      "previous"
+    ],
+    "toggle": [
+      "delight",
+      "airplay",
+      "media",
+      "toggle"
+    ],
+    "next": [
+      "delight",
+      "airplay",
+      "media",
+      "next"
+    ]
+  }
 }

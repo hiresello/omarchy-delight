@@ -189,12 +189,14 @@ Item {
       focus: true
       toggles: statusStore.toggles
       rows: statusStore.rows
+      nowPlaying: statusStore.nowPlaying
       devices: catalog.devices
       available: catalog.available
       opacity: root.opened ? 1 : 0
       scale: root.opened ? 1 : 0.96
       transformOrigin: Item.TopRight
       onToggleRequested: status => commands.toggle(status)
+      onCommandRequested: command => commands.run(command)
       onDetailRequested: status => {
         commands.detail(status)
         root.requestClose()

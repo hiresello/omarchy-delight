@@ -2,7 +2,13 @@
 
 ## Unreleased
 
+### Added
+
+- **Control Center:** a macOS-style Now Playing card with previous, play/pause and next, for any module whose status has the new optional `media` field. The iPhone shows its music there; the iPhone tile names the connected phone.
+
 ### Changed
+
+- **iPhone (phone module):** `delight phone install` always builds `delightd` from source. Without Rust it adds `rust` for the build and removes it afterwards; the unverified release download is gone.
 
 - **iPhone (phone module):** replaced KDE Connect with `delightd` (`daemon/`), Delight's own Rust implementation of Apple's ANCS and AMS Bluetooth LE services. iPhone notifications (with their actions) and media control work with no app on the iPhone and no KDE Connect. Clipboard, SMS, ring and file sending are gone from this module until their native versions land (Universal Clipboard needs the Apple Account bridge; files move to AirDrop). Not yet verified on a real iPhone.
 

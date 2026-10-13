@@ -47,6 +47,26 @@ Item {
   function isTile(m) { return m.toggle && m.state !== "unsupported" && m.state !== "needs-setup" && m.state !== "error" }
   readonly property var toggles: modules.filter(function(m) { return root.isTile(m) })
   readonly property var rows: modules.filter(function(m) { return !root.isTile(m) })
+  // The Now Playing card: the first module playing something, else the first paused one.
+  readonly property var nowPlaying: {
+    let withMedia = modules.filter(function(m) { return m.media && m.state === "on" })
+    let playing = withMedia.filter(function(m) { return m.media.playing })
+    return playing.length > 0 ? playing[0] : withMedia.length > 0 ? withMedia[0] : null
+  }
+
+  function isCommand(c) { return Array.isArray(c) && c.length > 0 }
+
+  function normalizeMedia(m) {
+    if (!m || typeof m !== "object" || typeof m.title !== "string" || m.title === "" || !isCommand(m.toggle)) return null
+    return {
+      title: m.title,
+      subtitle: typeof m.subtitle === "string" ? m.subtitle : "",
+      playing: m.playing === true,
+      previous: isCommand(m.previous) ? m.previous : [],
+      toggle: m.toggle,
+      next: isCommand(m.next) ? m.next : []
+    }
+  }
 
   signal changed()
 
@@ -90,7 +110,8 @@ Item {
       }) : [],
       devices: Array.isArray(raw.devices) ? raw.devices : [],
       reason: reason,
-      updated: typeof raw.updated === "string" ? raw.updated : ""
+      updated: typeof raw.updated === "string" ? raw.updated : "",
+      media: normalizeMedia(raw.media)
     }
   }
 

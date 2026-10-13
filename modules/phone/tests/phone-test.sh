@@ -34,8 +34,10 @@ mkdir -p "${STATUS_FILE%/*}"
 cp "$FIXTURE" "$STATUS_FILE"
 status=$("$BIN" status --json)
 ok "status validates" schema_valid "$SCHEMA/status.schema.json" <(printf '%s\n' "$status")
-is "now playing is the subtitle" "$(jq -r .subtitle <<<"$status")" "▶ Midnight City · M83"
-ok "media actions offered while playing" jq -e 'any(.actions[]; .label == "Play/Pause")' <<<"$status"
+is "now playing reaches the Control Center" "$(jq -r .media.title <<<"$status")" "Midnight City"
+is "now playing names artist and player" "$(jq -r .media.subtitle <<<"$status")" "M83 · Music"
+ok "now playing has previous, play/pause and next" jq -e '.media.playing and .media.previous[3] == "previous" and .media.toggle[3] == "toggle" and .media.next[3] == "next"' <<<"$status"
+is "tile names the connected iPhone while playing" "$(jq -r .subtitle <<<"$status")" "Juan's iPhone · connected"
 devices=$("$BIN" devices --json)
 ok "devices validate" schema_valid "$SCHEMA/device.schema.json" <(printf '%s\n' "$devices")
 is "only paired iPhones are devices" "$(jq -c 'map([.name,.transport,.connected])' <<<"$devices")" '[["Juan'"'"'s iPhone","ble",true]]'
@@ -73,6 +75,10 @@ rm -rf "$DELIGHT_SYSFS/class/bluetooth/hci0"
 is "no Bluetooth adapter: unsupported" "$(state .state)" "unsupported"
 ok "doctor reports unsupported" bash -c '"$1" doctor; test $? -eq 2' _ "$BIN"
 mkdir -p "$DELIGHT_SYSFS/class/bluetooth/hci0"
+
+ok "install without Rust adds rust for the build" bash -c 'DELIGHT_DELIGHTD_SOURCE= DELIGHT_CARGO=delight-test-no-cargo "$1" install && grep -Fq "omarchy-pkg-add rust" "$2"' _ "$BIN" "$DELIGHT_STUB_LOG"
+ok "install never downloads delightd" tap_not grep -Eq "^curl " "$DELIGHT_STUB_LOG"
+not_ok "the build-only rust package isn't kept on record" test -e "$HOME/.local/state/omarchy-delight/phone-build"
 
 ok "uninstall" "$BIN" uninstall
 not_ok "uninstall removes delightd" test -e "$DAEMON"

@@ -7,7 +7,7 @@
 # delight_status_json --id ID --state STATE --title T [--subtitle S] [--icon I]
 #   [--toggle true|false] [--reason R] [--actions JSON] [--devices JSON]
 delight_status_json() {
-  local id="" state="" title="" subtitle="" icon="" toggle=true reason="" actions='[]' devices='[]'
+  local id="" state="" title="" subtitle="" icon="" toggle=true reason="" actions='[]' devices='[]' media=null
   while (($# > 0)); do
     case "$1" in
       --id) id="$2" ;;
@@ -19,18 +19,19 @@ delight_status_json() {
       --reason) reason="$2" ;;
       --actions) actions="$2" ;;
       --devices) devices="$2" ;;
+      --media) media="$2" ;;
       *) delight_die "delight_status_json: unknown option $1" ;;
     esac
     shift 2
   done
   jq -cn --arg id "$id" --arg state "$state" --arg title "$title" --arg subtitle "$subtitle" \
     --arg icon "$icon" --argjson toggle "$toggle" --arg reason "$reason" \
-    --argjson actions "$actions" --argjson devices "$devices" \
+    --argjson actions "$actions" --argjson devices "$devices" --argjson media "$media" \
     --arg updated "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{
       schema: 1, id: $id, state: $state, title: $title, subtitle: $subtitle, icon: $icon,
       toggle: $toggle, actions: $actions, devices: $devices,
       reason: (if $reason == "" then null else $reason end), updated: $updated
-    }'
+    } + (if $media == null then {} else {media: $media} end)'
 }
 
 delight_status_file() {

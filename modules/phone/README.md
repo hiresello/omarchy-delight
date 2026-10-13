@@ -42,8 +42,9 @@ After that the iPhone reconnects on its own whenever it's nearby.
 
 ## Install
 
-`delight phone install` installs `~/.local/lib/omarchy-delight/delightd`: a
-local `cargo build` when Rust is present, otherwise the release binary.
+`delight phone install` builds `~/.local/lib/omarchy-delight/delightd` from
+`daemon/` with cargo. Without Rust it adds the `rust` package for the build
+and removes it again; nothing prebuilt is downloaded.
 `bluez` is the only package; Omarchy already ships it. No firewall ports.
 
 ## Not yet

@@ -90,6 +90,12 @@ required for `unsupported` and `error`. The Control Center draws one tile per
 file: clicking runs `delight <id> toggle` (when `toggle` is true), the chevron
 runs `actions[0].command` or `delight <id> open`.
 
+Optional `media` (`title`, `subtitle`, `playing`, and `previous`/`toggle`/`next`
+commands; `toggle` required) puts the module in the Control Center's Now
+Playing card, macOS-style: the first `on` module that is playing, else the
+first paused one. Its buttons run those commands and keep the panel open;
+clicking the title opens the module like the chevron.
+
 ## Providers
 
 `share-targets --json`, `schema/share-target.schema.json`:

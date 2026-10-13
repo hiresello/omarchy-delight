@@ -203,6 +203,20 @@ ShellRoot {
         shellRoot.tap(true, "\"…\" without actions runs `delight <id> open`")
         return true
       } },
+      { name: "now playing card", run: function() {
+        let card = view.nowPlayingCard
+        shellRoot.tap(card.visible && card.height > 0 && !!card.media && card.media.title === "Midnight City",
+          "a module's media shows as the Now Playing card", "visible=" + card.visible)
+        shellRoot.tap(card.buttons.length === 3, "Now Playing has previous, play/pause and next", "buttons=" + card.buttons.length)
+        shellRoot.tap(view.focusables().indexOf(card.buttons[0]) === store.toggles.length, "Now Playing controls follow the tiles in focus order")
+        card.buttons[2].clicked()
+        return true
+      } },
+      { name: "now playing next reaches delight", run: function() {
+        if (shellRoot.logText().indexOf("airplay media next") === -1) return false
+        shellRoot.tap(true, "Next on the Now Playing card runs the module's next command")
+        return true
+      } },
       { name: "unsupported click explains", run: function() {
         let tile = shellRoot.findTile(fixtures.sidecar.title)
         tile.forceActiveFocus()
@@ -335,9 +349,11 @@ ShellRoot {
         focus: true
         toggles: store.toggles
         rows: store.rows
+        nowPlaying: store.nowPlaying
         devices: catalog.devices
         available: catalog.available
         onToggleRequested: status => commands.toggle(status)
+        onCommandRequested: command => commands.run(command)
         onDetailRequested: status => commands.detail(status)
         onInstallRequested: id => commands.install(id)
       }

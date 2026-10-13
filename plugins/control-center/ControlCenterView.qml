@@ -13,14 +13,17 @@ FocusScope {
   property var toggles: []
   property var rows: []
   property var devices: []
+  property var nowPlaying: null
   property var available: []
   property bool showInstall: false
   readonly property bool empty: toggles.length === 0 && rows.length === 0
   readonly property bool installVisible: empty || showInstall
   property alias toast: toast
+  property alias nowPlayingCard: nowPlayingCard
 
   signal toggleRequested(var status)
   signal detailRequested(var status)
+  signal commandRequested(var command)
   signal deviceActivated(var device)
   signal installRequested(string id)
   signal closeRequested()
@@ -39,6 +42,7 @@ FocusScope {
     let out = []
     let i
     for (i = 0; i < tileRepeater.count; i++) out.push(tileRepeater.itemAt(i))
+    if (nowPlayingCard.visible) out = out.concat(nowPlayingCard.buttons)
     for (i = 0; i < rowRepeater.count; i++) out.push(rowRepeater.itemAt(i))
     for (i = 0; i < deviceRepeater.count; i++) out.push(deviceRepeater.itemAt(i))
     if (root.installVisible) for (i = 0; i < installRepeater.count; i++) out.push(installRepeater.itemAt(i))
@@ -115,6 +119,15 @@ FocusScope {
           onExplainRequested: toast.show(modelData.reason, modelData.icon, "info")
         }
       }
+    }
+
+    // ---- now playing
+    NowPlaying {
+      id: nowPlayingCard
+      width: parent.width
+      status: root.nowPlaying
+      onCommandRequested: command => root.commandRequested(command)
+      onOpenRequested: status => root.detailRequested(status)
     }
 
     // ---- compact rows

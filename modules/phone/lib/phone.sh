@@ -5,7 +5,6 @@
 # turns its status into Delight's contract.
 
 PHONE_ICON="󰀷"
-PHONE_RELEASE_URL="https://github.com/hiresello/omarchy-delight/releases/latest/download"
 
 phone_daemon_bin() {
   printf '%s\n' "$HOME/.local/lib/omarchy-delight/delightd"
@@ -40,35 +39,35 @@ phone_daemon_status() {
   fi
 }
 
-# Print the path of a delightd binary to install: a prebuilt one, a local
-# cargo build, or a release download. Fails when none is available.
+# Print the path of a delightd binary to install: a prebuilt one (tests) or a
+# cargo build of daemon/. Rust is added just for the build when it's missing
+# and removed again; nothing prebuilt is downloaded.
 phone_daemon_obtain() {
-  local root="$DELIGHT_ROOT/daemon" built arch tmp
+  local root="$DELIGHT_ROOT/daemon" built cargo=${DELIGHT_CARGO:-cargo} added=0 rc=0
   if [[ -n ${DELIGHT_DELIGHTD_SOURCE:-} ]]; then
     [[ -x $DELIGHT_DELIGHTD_SOURCE ]] || return 1
     printf '%s\n' "$DELIGHT_DELIGHTD_SOURCE"
     return 0
   fi
   built="$(phone_build_dir)/release/delightd"
-  if [[ ! -x $built ]] && delight_has_cmd cargo && [[ -f $root/Cargo.toml ]]; then
-    delight_log "phone: building delightd"
-    CARGO_TARGET_DIR="$(phone_build_dir)" \
-      cargo build --quiet --release --locked --manifest-path "$root/Cargo.toml" >&2 || return 1
+  if [[ ! -x $built && -f $root/Cargo.toml ]]; then
+    if ! delight_has_cmd "$cargo"; then
+      delight_log "phone: adding Rust to build delightd"
+      delight_pkg_add phone-build repo rust >&2
+      added=1
+    fi
+    if delight_has_cmd "$cargo"; then
+      delight_log "phone: building delightd"
+      CARGO_TARGET_DIR="$(phone_build_dir)" \
+        "$cargo" build --quiet --release --locked --manifest-path "$root/Cargo.toml" >&2 || rc=1
+    fi
+    if ((added)); then
+      delight_pkg_remove phone-build >&2
+      delight_state_clear phone-build
+    fi
   fi
-  if [[ -x $built ]]; then
-    printf '%s\n' "$built"
-    return 0
-  fi
-  delight_has_cmd curl || return 1
-  arch=$(uname -m)
-  tmp="$DELIGHT_STATE_DIR/phone/delightd.download"
-  mkdir -p -- "${tmp%/*}"
-  curl -fsSL --max-time 60 -o "$tmp" "$PHONE_RELEASE_URL/delightd-$arch" || {
-    rm -f -- "$tmp"
-    return 1
-  }
-  chmod +x -- "$tmp"
-  printf '%s\n' "$tmp"
+  ((rc == 0)) && [[ -x $built ]] || return 1
+  printf '%s\n' "$built"
 }
 
 phone_module_install() {
@@ -84,16 +83,21 @@ phone_module_install() {
       chmod +x -- "$(phone_daemon_bin)"
     fi
   else
-    delight_warn "phone: could not build or download delightd; the iPhone link stays off until 'delight phone install' succeeds"
+    delight_warn "phone: could not build delightd; the iPhone link stays off until 'delight phone install' succeeds"
   fi
-  rm -f -- "$DELIGHT_STATE_DIR/phone/delightd.download"
 }
 
-phone_now_playing() {
-  jq -r '
-    .nowPlaying // empty |
-    select(.title != null) |
-    (if .playing then "▶ " else "❚❚ " end) + .title + (if .artist then " · " + .artist else "" end)
+# The Control Center's Now Playing card, from delightd's AMS state.
+phone_media_json() {
+  jq -c '
+    .nowPlaying // empty | select((.title // "") != "") | {
+      title: .title,
+      subtitle: ([.artist, .player] | map(select((. // "") != "")) | join(" · ")),
+      playing: (.playing == true),
+      previous: ["delight", "phone", "media", "previous"],
+      toggle: ["delight", "phone", "media", "toggle"],
+      next: ["delight", "phone", "media", "next"]
+    }
   ' <<<"$1"
 }
 
@@ -105,7 +109,7 @@ phone_devices_json() {
 }
 
 phone_status_json() {
-  local title state subtitle reason="" daemon actions phones connected playing
+  local title state subtitle reason="" daemon actions phones connected media=""
   title=$(delight_module_field phone '.name')
   actions='[{"label":"Open","command":["delight","phone","open"]},{"label":"Pair","command":["delight","phone","pair"]}]'
   daemon=$(phone_daemon_status)
@@ -134,16 +138,13 @@ phone_status_json() {
     state=on
     phones=$(jq '[(.phones // [])[] | select(.paired)] | length' <<<"$daemon")
     connected=$(jq -r '[(.phones // [])[] | select(.paired and .connected)][0].name // empty' <<<"$daemon")
-    playing=$(phone_now_playing "$daemon")
+    media=$(phone_media_json "$daemon")
     if [[ $daemon == "{}" ]]; then
       subtitle="Starting…"
     elif [[ $(jq -r '.pairing // false' <<<"$daemon") == "true" ]]; then
       subtitle="Pairing — tap $(phone_hostname) on your iPhone"
     elif ((phones == 0)); then
       subtitle="No iPhone paired"
-    elif [[ -n $playing ]]; then
-      subtitle=$playing
-      actions=$(jq -cn --argjson a "$actions" '$a + [{label:"Play/Pause",command:["delight","phone","media","toggle"]},{label:"Next",command:["delight","phone","media","next"]}]')
     elif [[ -n $connected ]]; then
       subtitle="$connected · connected"
     else
@@ -153,6 +154,7 @@ phone_status_json() {
   local args=(--id phone --state "$state" --title "$title" --subtitle "$subtitle" --icon "$PHONE_ICON"
     --toggle true --actions "$actions" --devices "$(phone_devices_json)")
   [[ -z $reason ]] || args+=(--reason "$reason")
+  [[ -z $media ]] || args+=(--media "$media")
   delight_status_json "${args[@]}"
 }
 
