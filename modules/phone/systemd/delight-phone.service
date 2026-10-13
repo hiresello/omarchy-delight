@@ -7,6 +7,8 @@ After=graphical-session.target bluetooth.target
 ExecStart=%h/.local/lib/omarchy-delight/delightd run
 Restart=on-failure
 RestartSec=5
+# A crash leaves delightd.json behind; drop it so the tile never shows a dead link or stale music.
+ExecStopPost=/usr/bin/rm -f %t/omarchy-delight/delightd.json
 
 [Install]
 WantedBy=delight.target

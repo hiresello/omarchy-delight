@@ -70,6 +70,7 @@ not_ok "enable refuses without delightd" "$BIN" enable
 mv "$DAEMON.off" "$DAEMON"
 ok "publish rewrites the Control Center status" bash -c '"$1" publish && test -s "$2"' _ "$BIN" "$XDG_RUNTIME_DIR/omarchy-delight/status/phone.json"
 ok "delightd changes trigger a republish" grep -Fx "PathChanged=%t/omarchy-delight/delightd.json" "$ROOT/modules/phone/systemd/delight-phone-status.path"
+ok "a stopped or crashed delightd leaves no stale status" grep -Fx "ExecStopPost=/usr/bin/rm -f %t/omarchy-delight/delightd.json" "$ROOT/modules/phone/systemd/delight-phone.service"
 
 rm -rf "$DELIGHT_SYSFS/class/bluetooth/hci0"
 is "no Bluetooth adapter: unsupported" "$(state .state)" "unsupported"
