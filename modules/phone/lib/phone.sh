@@ -164,7 +164,7 @@ phone_hostname() {
 
 # Exit codes: 0 ok, 1 fixable, 2 unsupported, 3 needs user action.
 phone_doctor() {
-  local rc=0 daemon unit
+  local rc=0 daemon unit units
   if ! delight_hw_bluetooth; then
     printf '%s\n' "unsupported: no Bluetooth adapter"
     return 2
@@ -181,13 +181,18 @@ phone_doctor() {
     printf '%s\n' "bluetooth.service is not running (run: sudo systemctl enable --now bluetooth)"
     rc=1
   fi
+  units=$(delight_module_units)
   while IFS= read -r unit; do
     [[ -n $unit ]] || continue
+    # A .path unit's oneshot service is inactive between runs.
+    if [[ $unit == *.service ]] && grep -qxF "${unit%.service}.path" <<<"$units"; then
+      continue
+    fi
     if delight_module_enabled && ! systemctl --user is-active --quiet "$unit"; then
       printf 'inactive unit: %s (run: delight phone enable)\n' "$unit"
       rc=1
     fi
-  done < <(delight_module_units)
+  done <<<"$units"
   daemon=$(phone_daemon_status)
   if [[ $(jq -r '.error // empty' <<<"$daemon") != "" ]]; then
     printf '%s\n' "$(jq -r '.error' <<<"$daemon")"
