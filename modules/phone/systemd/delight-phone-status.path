@@ -1,0 +1,10 @@
+[Unit]
+Description=Republish Omarchy Delight iPhone status when delightd's state changes
+PartOf=delight.target
+
+[Path]
+PathChanged=%t/omarchy-delight/delightd.json
+Unit=delight-phone-status.service
+
+[Install]
+WantedBy=delight.target

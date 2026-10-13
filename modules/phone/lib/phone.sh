@@ -15,6 +15,14 @@ phone_daemon_status_file() {
   printf '%s\n' "$XDG_RUNTIME_DIR/omarchy-delight/delightd.json"
 }
 
+phone_build_dir() {
+  printf '%s\n' "${XDG_CACHE_HOME:-$HOME/.cache}/omarchy-delight/delightd-target"
+}
+
+phone_daemon_installed() {
+  [[ -x ${DELIGHT_DELIGHTD:-$(phone_daemon_bin)} ]]
+}
+
 phone_daemon() {
   local bin
   bin=${DELIGHT_DELIGHTD:-$(phone_daemon_bin)}
@@ -41,10 +49,11 @@ phone_daemon_obtain() {
     printf '%s\n' "$DELIGHT_DELIGHTD_SOURCE"
     return 0
   fi
-  built="$root/target/release/delightd"
+  built="$(phone_build_dir)/release/delightd"
   if [[ ! -x $built ]] && delight_has_cmd cargo && [[ -f $root/Cargo.toml ]]; then
     delight_log "phone: building delightd"
-    cargo build --quiet --release --locked --manifest-path "$root/Cargo.toml" >&2 || return 1
+    CARGO_TARGET_DIR="$(phone_build_dir)" \
+      cargo build --quiet --release --locked --manifest-path "$root/Cargo.toml" >&2 || return 1
   fi
   if [[ -x $built ]]; then
     printf '%s\n' "$built"
@@ -108,7 +117,7 @@ phone_status_json() {
     state=unsupported
     subtitle="No Bluetooth"
     reason="No Bluetooth adapter found; the iPhone link needs Bluetooth LE"
-  elif [[ ! -x ${DELIGHT_DELIGHTD:-$(phone_daemon_bin)} ]]; then
+  elif ! phone_daemon_installed; then
     state=needs-setup
     subtitle="Finish setup"
     reason="The native iPhone link (delightd) isn't installed yet"
@@ -194,6 +203,21 @@ phone_doctor() {
 
 module_install() {
   phone_module_install
+}
+
+module_uninstall() {
+  delight_module_default_uninstall
+  delight_rm "$(phone_build_dir)"
+  delight_rmdir_empty "$(dirname -- "$(phone_build_dir)")"
+}
+
+module_enable() {
+  phone_daemon_installed || delight_die "phone: delightd isn't installed (run: delight phone install)"
+  delight_module_default_enable
+}
+
+module_publish() {
+  delight_module_publish
 }
 
 module_status() {

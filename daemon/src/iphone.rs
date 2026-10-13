@@ -92,7 +92,7 @@ pub async fn attach(
             let mut toast_to_uid: HashMap<u32, u32> = HashMap::new();
             let mut app_names: HashMap<String, String> = HashMap::new();
             let mut pending: HashMap<u32, ancs::SourceEvent> = HashMap::new();
-            let mut waiting_app: HashMap<String, ancs::Attributes> = HashMap::new();
+            let mut waiting_app: HashMap<String, Vec<ancs::Attributes>> = HashMap::new();
             loop {
                 tokio::select! {
                     _ = stop.changed() => break,
@@ -100,10 +100,13 @@ pub async fn attach(
                         let Some(b) = msg else { break };
                         let Some(e) = ancs::parse_source(&b) else { continue };
                         match e.event {
-                            EventId::Removed => if let Some(id) = uid_to_toast.remove(&e.uid) {
-                                toast_to_uid.remove(&id);
-                                let _ = notes.close_notification(id).await;
-                            },
+                            EventId::Removed => {
+                                pending.remove(&e.uid);
+                                if let Some(id) = uid_to_toast.remove(&e.uid) {
+                                    toast_to_uid.remove(&id);
+                                    let _ = notes.close_notification(id).await;
+                                }
+                            }
                             // Don't replay the backlog that exists when we connect.
                             _ if e.flags.pre_existing() => {}
                             _ => {
@@ -114,21 +117,28 @@ pub async fn attach(
                     }
                     msg = data.next() => {
                         let Some(b) = msg else { break };
-                        let attrs = match asm.push(&b) {
-                            Some(Response::Notification(a)) => a,
+                        let ready: Vec<ancs::Attributes> = match asm.push(&b) {
+                            Some(Response::Notification(a)) => {
+                                let app_id = a.get(ancs::attr::APP_IDENTIFIER).unwrap_or("").to_owned();
+                                if !app_id.is_empty() && !app_names.contains_key(&app_id) {
+                                    let queue = waiting_app.entry(app_id.clone()).or_default();
+                                    if queue.is_empty() {
+                                        let _ = control.write(&ancs::get_app_attributes(&app_id)).await;
+                                    }
+                                    queue.push(a);
+                                    continue;
+                                }
+                                vec![a]
+                            }
                             Some(Response::App { app_id, display_name }) => {
                                 let name = display_name.unwrap_or_else(|| app_id.clone());
                                 app_names.insert(app_id.clone(), name);
-                                match waiting_app.remove(&app_id) { Some(a) => a, None => continue }
+                                waiting_app.remove(&app_id).unwrap_or_default()
                             }
                             None => continue,
                         };
+                        for attrs in ready {
                         let app_id = attrs.get(ancs::attr::APP_IDENTIFIER).unwrap_or("").to_owned();
-                        if !app_id.is_empty() && !app_names.contains_key(&app_id) && !waiting_app.contains_key(&app_id) {
-                            waiting_app.insert(app_id.clone(), attrs);
-                            let _ = control.write(&ancs::get_app_attributes(&app_id)).await;
-                            continue;
-                        }
                         let Some(e) = pending.remove(&attrs.uid) else { continue };
                         let app = app_names.get(&app_id).map(String::as_str).unwrap_or("iPhone");
                         let title = attrs.get(ancs::attr::TITLE).unwrap_or(app);
@@ -148,6 +158,7 @@ pub async fn attach(
                         if let Ok(id) = desktop::show(&notes, replaces, &toast).await {
                             uid_to_toast.insert(attrs.uid, id);
                             toast_to_uid.insert(id, attrs.uid);
+                        }
                         }
                     }
                     sig = actions.next() => {

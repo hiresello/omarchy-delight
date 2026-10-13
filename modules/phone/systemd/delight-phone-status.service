@@ -1,0 +1,11 @@
+[Unit]
+Description=Publish Omarchy Delight iPhone status
+PartOf=delight.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/share/omarchy-delight/modules/phone/bin/delight-phone publish
+
+[Install]
+WantedBy=delight.target

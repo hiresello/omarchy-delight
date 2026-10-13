@@ -8,8 +8,9 @@ delight phone install && delight phone enable
 delight phone pair
 ```
 
-**Pairing:** on the iPhone, open **Settings › Bluetooth**, tap this computer,
-confirm the code, and allow notifications. It reconnects on its own after
+**Pairing:** on the iPhone, open **Settings › Bluetooth** and tap this computer,
+click **Pair** on the Omarchy notification if the codes match, and allow
+notifications on the iPhone. It reconnects on its own after
 that.
 
 - **Notifications** from the iPhone appear on the desktop with their actions

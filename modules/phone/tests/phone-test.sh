@@ -63,6 +63,12 @@ not_ok "unknown media command fails" "$BIN" media eject
 not_ok "media fails without a connected iPhone" env DELIGHT_PHONE_NO_MEDIA=true "$BIN" media next
 unset DELIGHT_DELIGHTD
 
+mv "$DAEMON" "$DAEMON.off"
+not_ok "enable refuses without delightd" "$BIN" enable
+mv "$DAEMON.off" "$DAEMON"
+ok "publish rewrites the Control Center status" bash -c '"$1" publish && test -s "$2"' _ "$BIN" "$XDG_RUNTIME_DIR/omarchy-delight/status/phone.json"
+ok "delightd changes trigger a republish" grep -Fx "PathChanged=%t/omarchy-delight/delightd.json" "$ROOT/modules/phone/systemd/delight-phone-status.path"
+
 rm -rf "$DELIGHT_SYSFS/class/bluetooth/hci0"
 is "no Bluetooth adapter: unsupported" "$(state .state)" "unsupported"
 ok "doctor reports unsupported" bash -c '"$1" doctor; test $? -eq 2' _ "$BIN"

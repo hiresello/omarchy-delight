@@ -17,6 +17,7 @@ use bluer::agent::{Agent, ReqError};
 use bluer::{Adapter, AdapterEvent, Address, DeviceEvent, DeviceProperty};
 use futures::StreamExt;
 use std::collections::{BTreeSet, HashMap};
+use std::os::unix::fs::PermissionsExt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -32,7 +33,7 @@ enum Msg {
     Detached(Address),
     Device(Address),
     Command(String, tokio::sync::oneshot::Sender<String>),
-    PairingDone,
+    PairingDone(u64),
 }
 
 fn usage() -> ! {
@@ -101,16 +102,26 @@ async fn run() -> Result<()> {
     };
     st.powered = adapter.is_powered().await.unwrap_or(false);
 
-    // Pairing: only confirm passkeys while the user has opened the pairing window.
+    let conn = zbus::Connection::session()
+        .await
+        .context("no session bus")?;
+    let notes = desktop::NotificationsProxy::new(&conn).await?;
+
+    // Pairing: only while the user has opened the pairing window, and only
+    // after they confirm on the desktop that the codes match.
     let pairing = Arc::new(AtomicBool::new(false));
     let p = pairing.clone();
+    let pn = notes.clone();
+    let pa = adapter.clone();
     let _agent = session
         .register_agent(Agent {
             request_default: true,
-            request_confirmation: Some(Box::new(move |_req| {
-                let ok = p.load(Ordering::SeqCst);
+            request_confirmation: Some(Box::new(move |req| {
+                let open = p.load(Ordering::SeqCst);
+                let notes = pn.clone();
+                let adapter = pa.clone();
                 Box::pin(async move {
-                    if ok {
+                    if open && confirm_pairing(&notes, &adapter, &req).await {
                         Ok(())
                     } else {
                         Err(ReqError::Rejected)
@@ -135,20 +146,19 @@ async fn run() -> Result<()> {
     };
     writer.write(&st).ok();
 
-    let conn = zbus::Connection::session()
-        .await
-        .context("no session bus")?;
-    let notes = desktop::NotificationsProxy::new(&conn).await?;
     let (tx, mut rx) = mpsc::channel::<Msg>(64);
 
     // Device discovery: watch every known and newly added device.
     {
         let tx = tx.clone();
         let mut evs = Box::pin(adapter.events().await?);
-        for addr in adapter.device_addresses().await? {
-            tx.send(Msg::Device(addr)).await.ok();
-        }
+        let known = adapter.device_addresses().await?;
         tokio::spawn(async move {
+            for addr in known {
+                if tx.send(Msg::Device(addr)).await.is_err() {
+                    return;
+                }
+            }
             while let Some(e) = evs.next().await {
                 if let AdapterEvent::DeviceAdded(addr) = e {
                     if tx.send(Msg::Device(addr)).await.is_err() {
@@ -162,9 +172,10 @@ async fn run() -> Result<()> {
     // Control socket for the delight CLI.
     {
         let path = status::socket_path();
-        std::fs::create_dir_all(path.parent().unwrap()).ok();
+        status::ensure_dir(path.parent().unwrap()).context("create runtime dir")?;
         let _ = std::fs::remove_file(&path);
         let listener = UnixListener::bind(&path).context("bind control socket")?;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
         let tx = tx.clone();
         tokio::spawn(async move {
             while let Ok((s, _)) = listener.accept().await {
@@ -191,6 +202,8 @@ async fn run() -> Result<()> {
 
     let mut watched: HashMap<Address, watch::Sender<bool>> = HashMap::new();
     let mut media: HashMap<Address, bluer::gatt::remote::Characteristic> = HashMap::new();
+    let mut pairing_gen: u64 = 0;
+    let mut playing_from: Option<Address> = None;
     let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
 
     loop {
@@ -220,7 +233,8 @@ async fn run() -> Result<()> {
                 if let Some(p) = st.phones.iter_mut().find(|p| p.address == addr.to_string()) {
                     p.connected = false;
                 }
-                if media.is_empty() {
+                if media.is_empty() || playing_from == Some(addr) {
+                    playing_from = None;
                     st.now_playing = None;
                 }
             }
@@ -237,13 +251,26 @@ async fn run() -> Result<()> {
                     p.media = m;
                 }
             }
-            Msg::Phone(_, iphone::Event::Media(n)) => st.now_playing = Some(n),
-            Msg::PairingDone => {
+            Msg::Phone(addr, iphone::Event::Media(n)) => {
+                playing_from = Some(addr);
+                st.now_playing = Some(n);
+            }
+            Msg::PairingDone(gen) if gen != pairing_gen => {}
+            Msg::PairingDone(_) => {
                 pairing.store(false, Ordering::SeqCst);
                 st.pairing = false;
             }
             Msg::Command(line, reply) => {
-                let r = command(&line, &adapter, &pairing, &mut st, &media, &tx).await;
+                let r = command(
+                    &line,
+                    &adapter,
+                    &pairing,
+                    &mut pairing_gen,
+                    &mut st,
+                    &media,
+                    &tx,
+                )
+                .await;
                 let _ = reply.send(match r {
                     Ok(s) => s,
                     Err(e) => format!("error: {e}"),
@@ -266,6 +293,7 @@ async fn command(
     line: &str,
     adapter: &Adapter,
     pairing: &Arc<AtomicBool>,
+    pairing_gen: &mut u64,
     st: &mut status::Status,
     media: &HashMap<Address, bluer::gatt::remote::Characteristic>,
     tx: &mpsc::Sender<Msg>,
@@ -278,10 +306,12 @@ async fn command(
             adapter.set_pairable(true).await.ok();
             pairing.store(true, Ordering::SeqCst);
             st.pairing = true;
+            *pairing_gen += 1;
+            let gen = *pairing_gen;
             let tx = tx.clone();
             tokio::spawn(async move {
                 tokio::time::sleep(PAIRING_WINDOW).await;
-                let _ = tx.send(Msg::PairingDone).await;
+                let _ = tx.send(Msg::PairingDone(gen)).await;
             });
             Ok(format!("pairing for {}s", PAIRING_WINDOW.as_secs()))
         }
@@ -299,6 +329,47 @@ async fn command(
         }
         _ => Err(anyhow!("unknown command")),
     }
+}
+
+/// Ask on the desktop whether the code the iPhone shows matches.
+async fn confirm_pairing(
+    notes: &desktop::NotificationsProxy<'static>,
+    adapter: &Adapter,
+    req: &bluer::agent::RequestConfirmation,
+) -> bool {
+    let Ok(mut actions) = notes.receive_action_invoked().await else {
+        return false;
+    };
+    let name = match adapter.device(req.device) {
+        Ok(d) => d.alias().await.unwrap_or_else(|_| req.device.to_string()),
+        Err(_) => req.device.to_string(),
+    };
+    let body = format!("Pair only if {name} shows {:06}.", req.passkey);
+    let toast = desktop::Toast {
+        app: "Omarchy Delight",
+        summary: "Pair this iPhone?",
+        body: &body,
+        urgency: 2,
+        positive: Some("Pair"),
+        negative: Some("Cancel"),
+    };
+    let Ok(id) = desktop::show(notes, 0, &toast).await else {
+        return false;
+    };
+    let answer = tokio::time::timeout(Duration::from_secs(30), async {
+        while let Some(sig) = actions.next().await {
+            if let Ok(a) = sig.args() {
+                if a.id == id {
+                    return a.action_key == "positive";
+                }
+            }
+        }
+        false
+    })
+    .await
+    .unwrap_or(false);
+    let _ = notes.close_notification(id).await;
+    answer
 }
 
 async fn refresh_phones(

@@ -21,8 +21,9 @@ delight phone pair
 `delight phone pair` opens a two-minute pairing window. `delightd` advertises
 this computer as a Bluetooth LE peripheral that *solicits* ANCS and AMS, which
 is how iOS recognises a notification accessory. On the iPhone, open
-**Settings › Bluetooth**, tap this computer, confirm the code, and allow
-**Share System Notifications**. Outside the pairing window `delightd` rejects
+**Settings › Bluetooth** and tap this computer. Omarchy shows the pairing
+code in a notification: click **Pair** if it matches the iPhone's, then allow
+**Share System Notifications** on the iPhone. Outside the pairing window `delightd` rejects
 new pairings.
 
 After that the iPhone reconnects on its own whenever it's nearby.
