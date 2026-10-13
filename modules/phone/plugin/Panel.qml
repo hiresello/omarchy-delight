@@ -41,13 +41,16 @@ Item {
     id: statusFile
     path: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/omarchy-delight/delightd.json"
     watchChanges: root.opened
+    blockLoading: true
     printErrors: false
     onFileChanged: reload()
+    // A half-written file (an in-place edit) keeps the last good state instead
+    // of collapsing the sheet for a frame.
     onLoaded: {
       try {
-        root.daemon = JSON.parse(text() || "{}")
+        const next = JSON.parse(text())
+        if (next && typeof next === "object") root.daemon = next
       } catch (e) {
-        root.daemon = {}
       }
     }
     onLoadFailed: root.daemon = {}
