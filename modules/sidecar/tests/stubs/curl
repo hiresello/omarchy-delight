@@ -16,6 +16,10 @@ printf 'curl %s %s user=%s %s\n' "$method" "$url" "$user" "$body" >>"${DELIGHT_S
 case "$method ${url##*/api}" in
   "GET /pin")
     [[ ${SIDECAR_STUB_LEGACY:-} == 1 ]] && exit 22
+    if [[ ${SIDECAR_STUB_PIN_FAIL:-} == 1 ]]; then
+      echo '{"status_code":401,"error":"Unauthorized"}'
+      exit 22
+    fi
     echo '{"pairings":[{"id":"0123456789abcdef0123456789abcdef","name":"iPad","address":"192.168.1.20"}]}'
     ;;
   "POST /pin")

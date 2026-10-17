@@ -351,12 +351,14 @@ module_pair() {
   case "$pin" in
     "") module_open ;;
     --pending)
-      sunshine_api GET /api/pin 2>/dev/null | jq -c '.pairings // []' || echo '[]'
+      pending=$(sunshine_api GET /api/pin 2>/dev/null) || pending=null
+      jq -ce 'if type == "object" and (.pairings | type) == "array" then .pairings else [] end' <<<"$pending" 2>/dev/null \
+        || echo '[]'
       ;;
     *)
       sidecar_valid_pin "$pin" || delight_die "sidecar: the PIN is the 4 digits Moonlight shows" 64
-      pending=$(sunshine_api GET /api/pin 2>/dev/null || echo null)
-      jq -e . >/dev/null 2>&1 <<<"$pending" || pending=null
+      pending=$(sunshine_api GET /api/pin 2>/dev/null) || pending=null
+      jq -e 'type == "object"' >/dev/null 2>&1 <<<"$pending" || pending=null
       [[ -n $name ]] || name=$(jq -r '(.pairings // []) | last | .name // "Tablet"' <<<"$pending" 2>/dev/null || echo Tablet)
       [[ -n $name ]] || name=Tablet
       payload=$(sidecar_pin_payload "$pending" "$pin" "$name")
@@ -474,15 +476,20 @@ qr_png() {
 }
 
 module_info() {
-  local status pending='[]' qr
+  local status pending='[]' qr presets custom
   status=$(module_status)
   if creds_known && sidecar_active && [[ $(cfg backend) == "sunshine" ]]; then
-    pending=$(module_pair --pending 2>/dev/null || echo '[]')
+    pending=$(module_pair --pending 2>/dev/null) || true
+    jq -e 'type == "array"' >/dev/null 2>&1 <<<"$pending" || pending='[]'
+  fi
+  presets=$(sidecar_presets_json)
+  if custom=$(sidecar_mode custom landscape "$(cfg custom)" 2>/dev/null); then
+    presets=$(jq -c --argjson m "$custom" '. + [{id: "custom"} + $m | .label = "Custom \(.width)x\(.height)"]' <<<"$presets")
   fi
   qr=$(jq -cn --arg ios "$(qr_png ios "$SIDECAR_MOONLIGHT_IOS")" --arg android "$(qr_png android "$SIDECAR_MOONLIGHT_ANDROID")" \
     --arg deskreen "$(if [[ $(cfg backend) == "deskreen" ]]; then qr_png deskreen "$(deskreen_url)"; fi)" \
     '{ios: $ios, android: $android, deskreen: $deskreen}')
-  jq -cn --argjson status "$status" --argjson presets "$(sidecar_presets_json)" --argjson pending "$pending" \
+  jq -cn --argjson status "$status" --argjson presets "$presets" --argjson pending "$pending" \
     --argjson hosts "$(lan_addresses)" --argjson qr "$qr" --argjson credentials "$(creds_known && echo true || echo false)" \
     --arg preset "$(cfg preset)" --arg orientation "$(cfg orientation)" --arg arrangement "$(cfg arrangement)" \
     --arg backend "$(cfg backend)" --arg deskreen "$(deskreen_url)" \
