@@ -87,6 +87,16 @@ ok "send via localsend --to exits 0" "$BIN" send localsend:192.168.1.20 "$testfi
 ok "send called localsend with --to and the path" \
   grep -q "localsend --headless send --to 192.168.1.20 .*$testfile\|localsend.*send --to 192.168.1.20 .*$testfile" "$DELIGHT_STUB_LOG"
 
+# A fixture peer resolves by fingerprint on send (fresh runtime, no cache).
+cat >"$SANDBOX/peers.json" <<'EOF'
+[{"alias":"Fixture Phone","deviceType":"mobile","fingerprint":"fixture-fp","ip":"10.9.9.9","protocol":"https"}]
+EOF
+rm -rf "$XDG_RUNTIME_DIR/omarchy-delight/share"
+: >"$DELIGHT_STUB_LOG"
+ok "send resolves fixture fingerprint" env DELIGHT_SHARE_PEERS_FIXTURE="$SANDBOX/peers.json" \
+  "$BIN" send localsend:fixture-fp "$testfile"
+ok "resolved to the fixture ip" grep -q -- "--to 10.9.9.9" "$DELIGHT_STUB_LOG"
+
 rc=0
 "$BIN" send banana:xyz "$testfile" >/dev/null 2>&1 || rc=$?
 ok "send unknown target prefix exits non-zero" test "$rc" -ne 0
@@ -183,9 +193,20 @@ ok "watch-receive --once again exits 0" "$BIN" watch-receive --once --prefs "$pr
 is "exactly one new notification" "$(grep -c omarchy-notification-send "$DELIGHT_STUB_LOG")" "1"
 ok "file notify offers reveal exec" grep -q "exec nautilus --select /home/u/Pictures/pic.png" "$DELIGHT_STUB_LOG"
 ok "new-entry notify names the file" grep -q "Received pic.png" "$DELIGHT_STUB_LOG"
+# Upstream requires headline/description BEFORE --exec <program> [args...].
+ok "headline comes before --exec" \
+  grep -Eq 'omarchy-notification-send .*Received pic\.png.*from Pixel 8.*--exec nautilus --select' "$DELIGHT_STUB_LOG"
 
 : >"$DELIGHT_STUB_LOG"
 "$BIN" watch-receive --once --prefs "$prefs" >/dev/null 2>&1
 not_ok "third --once notifies nothing" grep -q "omarchy-notification-send" "$DELIGHT_STUB_LOG"
+
+# A failing notification command must not abort the watcher. The seen file
+# already holds r1..r3, so the new r4 entry really tries to notify (and fails).
+: >"$DELIGHT_STUB_STATE/notify-fail"
+jq '.["flutter.ls_receive_history"] += ["{\"id\":\"r4\",\"fileName\":\"a.bin\",\"path\":\"/tmp/a.bin\",\"isMessage\":false,\"senderAlias\":\"Desk\"}"]' \
+  "$prefs" >"$prefs.new" && mv "$prefs.new" "$prefs"
+ok "watch-receive survives a failing notifier" "$BIN" watch-receive --once --prefs "$prefs"
+rm -f "$DELIGHT_STUB_STATE/notify-fail"
 
 done_testing

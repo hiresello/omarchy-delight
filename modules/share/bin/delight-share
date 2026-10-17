@@ -398,11 +398,12 @@ module_send() {
     localsend:*)
       ip=${target#localsend:}
       proto=https
-      # Non-IP ids are LocalSend fingerprints; resolve against the peer cache.
-      if [[ $ip != *.*.*.* && -f $SHARE_PEERS_FILE ]]; then
+      # Non-IP ids are LocalSend fingerprints; resolve via share_peers so the
+      # fixture, the cache and a fresh scan all work.
+      if [[ $ip != *.*.*.* ]]; then
         local ent
-        ent=$(jq -r --arg t "$ip" '.[] | select(.fingerprint == $t) | "\(.protocol // "https") \(.ip)"' \
-          "$SHARE_PEERS_FILE" 2>/dev/null | head -1)
+        ent=$(share_peers 2>/dev/null | jq -r --arg t "$ip" \
+          '.[] | select(.fingerprint == $t) | "\(.protocol // "https") \(.ip)"' 2>/dev/null | head -1)
         [[ -n $ent ]] && read -r proto ip <<<"$ent"
       fi
       [[ $ip == *.*.*.* ]] || delight_die "send: cannot resolve $target to an IP" 1
@@ -535,11 +536,23 @@ share_receive_new() {
     path=$(jq -r '.path // empty' <<<"$entry")
     ismsg=$(jq -r '.isMessage // false' <<<"$entry")
     if [[ $ismsg == true ]]; then
-      delight_notify share "Message from $sender" "$name" -g "󰍡"
+      delight_notify share "Message from $sender" "$name" -g "󰍡" \
+        || delight_log "share: notification for $id failed"
     elif [[ -n $path ]]; then
-      delight_notify share "Received $name" "from $sender" -g "󰒖" --exec nautilus --select "$path"
+      # omarchy-notification-send requires --exec <program> [args...] LAST,
+      # after <headline> [description]; delight_notify puts extras before the
+      # title, so call it directly and never let a failure abort the watcher.
+      if delight_has_cmd omarchy-notification-send; then
+        delight_run omarchy-notification-send --app-name omarchy-delight-share -g "󰒖" \
+          "Received $name" "from $sender" --exec nautilus --select "$path" \
+          || delight_log "share: notification for $id failed"
+      else
+        delight_notify share "Received $name" "from $sender" \
+          || delight_log "share: notification for $id failed"
+      fi
     else
-      delight_notify share "Received $name" "from $sender" -g "󰒖"
+      delight_notify share "Received $name" "from $sender" \
+        || delight_log "share: notification for $id failed"
     fi
   done < <(jq -c '."flutter.ls_receive_history" // [] | .[] | fromjson? // .' "$prefs" 2>/dev/null)
 }

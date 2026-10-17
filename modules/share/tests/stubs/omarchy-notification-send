@@ -1,0 +1,39 @@
+#!/bin/bash
+# omarchy-notification-send stub: logs argv and enforces upstream ordering —
+# options before positionals, and after the headline only `--exec <program>
+# [args...]` may follow (it is always the last group). Exits 1 like upstream on
+# an unknown option after the positional args; state file `notify-fail`
+# forces exit 1 to exercise watcher resilience.
+name=$(basename -- "$0")
+printf '%s %s\n' "$name" "$*" >>"${DELIGHT_STUB_LOG:-/dev/null}"
+state=${DELIGHT_STUB_STATE:-/tmp}
+
+[[ -f $state/notify-fail ]] && exit 1
+
+seen_pos=false seen_exec=false skip=false
+for a in "$@"; do
+  if $skip; then skip=false; continue; fi
+  if $seen_exec; then continue; fi
+  case "$a" in
+    --exec) seen_exec=true ;;
+    --app-name | -g | -u | -i)
+      if $seen_pos; then
+        echo "Unknown option: $a" >&2
+        exit 1
+      fi
+      skip=true
+      ;;
+    -urgency | -h | --help | -e | --expire-time | -f | --transient | --wait)
+      if $seen_pos; then
+        echo "Unknown option: $a" >&2
+        exit 1
+      fi
+      ;;
+    -*)
+      echo "Unknown option: $a" >&2
+      exit 1
+      ;;
+    *) seen_pos=true ;;
+  esac
+done
+exit 0
