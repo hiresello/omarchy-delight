@@ -122,6 +122,9 @@ Item {
   Process {
     id: reader
     command: ["delight", "sidecar", "info", "--json"]
+    onExited: function(exitCode) {
+      if (exitCode !== 0) root.message = "Couldn't read Sidecar state (delight sidecar info --json exited " + exitCode + ")"
+    }
     stdout: StdioCollector {
       onStreamFinished: {
         try {

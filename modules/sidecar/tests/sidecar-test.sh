@@ -186,6 +186,11 @@ ok "deskreen backend" "$BIN" set backend deskreen
 is "deskreen labelled view-only" "$("$BIN" status --json | jq -r .subtitle)" "iPad Pro 11\", right (view-only)"
 ok "info --json" bash -c "'$BIN' info --json | jq -e '.config.backend == \"deskreen\" and (.deskreenUrl | startswith(\"http://\")) and (.presets | length) > 3'"
 ok "back to sunshine" "$BIN" set backend sunshine
+ok "start for info" "$BIN" start
+ok "info --json lists pending pairings" bash -c "'$BIN' info --json | jq -e '.pending | length == 1'"
+ok "info --json survives a failing pairing API" bash -c "SIDECAR_STUB_PIN_FAIL=1 '$BIN' info --json | jq -e '.pending == []'"
+ok "info --json offers the custom preset" bash -c "'$BIN' info --json | jq -e 'any(.presets[]; .id == \"custom\" and .label == \"Custom 2388x1668\")'"
+ok "stop after info" "$BIN" stop
 
 # Doctor.
 "$BIN" doctor >/dev/null 2>&1
