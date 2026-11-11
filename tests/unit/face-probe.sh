@@ -27,9 +27,11 @@ assert_redacted() {
 }
 
 run_fixture() {
-  local name="$1" id="$2" phrase="$3" out stdout
+  local name="$1" id="$2" phrase="$3" out stdout rc
   out="$SANDBOX/$name.txt"
   stdout=$("$PROBE" --fixture "$FIX/$name" --output "$out")
+  rc=$?
+  ok "$name probe exits 0" test "$rc" -eq 0
   is "$name verdict id" "$(grep -E '^Verdict id: ' "$out")" "Verdict id: $id"
   is "$name stdout id" "$(printf '%s\n' "$stdout" | head -n 1)" "Verdict id: $id"
   ok "$name phrase" grep -F -q "$phrase" <<<"$stdout"
@@ -77,6 +79,8 @@ Available cameras:
     Modes: 'R10_CSI2P' : 560x360 [30.00 fps]
 EOF
 stream_out=$("$PROBE" --fixture "$stream" --output "$SANDBOX/ir-stream.txt")
+stream_rc=$?
+ok "listed ir capture probe exits 0" test "$stream_rc" -eq 0
 is "listed ir capture verdict" "$(head -n 1 <<<"$stream_out")" "Verdict id: ir-capture-listed"
 ok "listed ir capture stays off howdy" grep -F -q "Stay off the Howdy Next path" <<<"$stream_out"
 not_ok "listed ir capture is not the illuminator branch" grep -F -q "illuminator or driver issue" <<<"$stream_out"
@@ -91,6 +95,8 @@ Bus 002 Device 003: ID 1234:5678 Example Vendor HM1092
 probe-canary user=juanprobe SerialNumber: ASUS123456789 mac aa:bb:cc:dd:ee:ff dotted aabb.ccdd.eeff dashed aa-bb-cc-dd-ee-ff
 EOF
 usb_out=$("$PROBE" --fixture "$usb" --output "$SANDBOX/usb-named.txt")
+usb_rc=$?
+ok "unbound usb ir probe exits 0" test "$usb_rc" -eq 0
 is "unbound usb ir verdict" "$(head -n 1 <<<"$usb_out")" "Verdict id: usb-ir-not-uvc"
 ok "unbound usb ir says uvcvideo is not bound" grep -F -q "uvcvideo is not bound" <<<"$usb_out"
 assert_redacted "unbound usb ir" "$SANDBOX/usb-named.txt"
@@ -102,6 +108,8 @@ cp -a "$FIX/nothing/." "$blind/"
 printf '%s\n' "quiet rw" >"$blind/cmdline.txt"
 printf '%s\n' "(unreadable: Operation not permitted)" >"$blind/dmesg.txt"
 blind_out=$("$PROBE" --fixture "$blind" --output "$SANDBOX/blind.txt")
+blind_rc=$?
+ok "unreadable dmesg probe exits 0" test "$blind_rc" -eq 0
 is "unreadable dmesg verdict" "$(head -n 1 <<<"$blind_out")" "Verdict id: incomplete"
 ok "unreadable dmesg does not claim the sensor is missing" grep -F -q "could not see enough" <<<"$blind_out"
 
@@ -112,6 +120,8 @@ cp -a "$FIX/nothing/." "$rail/"
 printf '%s\n' "quiet rw" >"$rail/cmdline.txt"
 printf '%s\n' "pm8010 3-0010: regulators ready" >"$rail/dmesg.txt"
 rail_out=$("$PROBE" --fixture "$rail" --output "$SANDBOX/rail.txt")
+rail_rc=$?
+ok "pm8010 alone probe exits 0" test "$rail_rc" -eq 0
 is "pm8010 alone verdict" "$(head -n 1 <<<"$rail_out")" "Verdict id: nothing"
 ok "pm8010 alone is called out" grep -F -q "mentions pm8010" <<<"$rail_out"
 
@@ -142,6 +152,8 @@ ok "delight face help" test "$face_help_rc" -eq 0
 ok "delight face help names the probe" grep -F -q "probe" <<<"$face_help"
 ok "delight face help names the module" grep -F -q "install" <<<"$face_help"
 from_cli=$("$DELIGHT" face probe --fixture "$FIX/uvc-ir" --output "$SANDBOX/from-delight.txt")
+from_cli_rc=$?
+ok "dispatcher probe exits 0" test "$from_cli_rc" -eq 0
 is "dispatcher verdict" "$(head -n 1 <<<"$from_cli")" "Verdict id: uvc-ir"
 not_ok "unknown face command fails" "$DELIGHT" face enroll
 not_ok "missing fixture fails" "$PROBE" --fixture "$SANDBOX/no-such-fixture" --output "$SANDBOX/missing.txt"
@@ -199,6 +211,8 @@ live_stdout=$(
     DELIGHT_FACE_PROBE_DEV="$live/dev" \
     "$PROBE" --output "$live/report.txt"
 )
+live_rc=$?
+ok "live probe exits 0" test "$live_rc" -eq 0
 ok "live report exists" test -s "$live/report.txt"
 is "live stub verdict" "$(head -n 1 <<<"$live_stdout")" "Verdict id: uvc-ir"
 ok "live stub says it is live" grep -F -q "source: live" "$live/report.txt"

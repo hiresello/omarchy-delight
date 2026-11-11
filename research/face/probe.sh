@@ -259,7 +259,8 @@ face_probe_collect_dmesg() {
   count=$(printf '%s\n' "$filtered" | grep -c . || true)
   if [[ $count -gt 400 ]]; then
     {
-      printf '%s\n' "$filtered" | head -n 400
+      # head closes the pipe early. Tolerate the resulting SIGPIPE.
+      printf '%s\n' "$filtered" | head -n 400 || true
       printf '%s\n' "(truncated to 400 matching lines)"
     } >"$dest"
   else
@@ -499,7 +500,8 @@ face_probe_classify() {
 
 face_probe_flag() {
   local file="$1" key="$2" line
-  line=$(grep -E "^${key}=" "$file" | head -n 1 || true)
+  # -m 1 stops after one hit. A pipe into head would SIGPIPE under pipefail.
+  line=$(grep -E -m 1 "^${key}=" "$file" || true)
   printf '%s\n' "${line#*=}"
 }
 
@@ -673,9 +675,12 @@ face_probe_main() {
     source_note="Commands were read on this boot. This is not a measurement of frame capture or of the IR illuminator."
   fi
   face_probe_classify "$work/sections" >"$work/flags"
-  local verdict_id verdict_text
-  verdict_id=$(face_probe_verdict "$work/flags" | head -n 1)
-  verdict_text=$(face_probe_verdict "$work/flags" | tail -n +2)
+  local verdict verdict_id verdict_text
+  # Read both lines from one run. Piping into head exits the writer with
+  # SIGPIPE, and pipefail then aborts the probe before it prints a verdict.
+  verdict=$(face_probe_verdict "$work/flags")
+  verdict_id=${verdict%%$'\n'*}
+  verdict_text=${verdict#*$'\n'}
   face_probe_render "$work/sections" "$work/flags" "$verdict_id" "$verdict_text" "$output" "$source_label" "$source_note"
   printf 'Verdict id: %s\n%s\n\nWrote redacted report: %s\n' "$verdict_id" "$verdict_text" "$output"
 }
