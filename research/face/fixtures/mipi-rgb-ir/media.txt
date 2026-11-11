@@ -1,0 +1,25 @@
+===== media-ctl -d /dev/media0 -p =====
+Media controller API version 6.18.0
+
+Media device information
+------------------------
+driver          qcom-camss
+model           Qualcomm Camera Subsystem
+serial          aa:bb:cc:dd:ee:ff
+bus info        platform:ac01000.camss
+hw revision     0x0
+driver version  6.18.0
+
+Device topology
+- entity 1: ov02c10 1-0036 (1 pad, 1 link)
+            type V4L2 subdev subtype Sensor flags 0
+            device node name /dev/v4l-subdev0
+	pad0: Source
+		-> "csiphy4":0 [ENABLED]
+- entity 2: csiphy4 (2 pads, 2 links)
+            type V4L2 subdev subtype Unknown flags 0
+- entity 3: hm1092 0-0024 (1 pad, 1 link)
+            type V4L2 subdev subtype Sensor flags 0
+            device node name /dev/v4l-subdev1
+	pad0: Source
+		-> "csiphy0":0 []

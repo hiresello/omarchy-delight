@@ -1,0 +1,3 @@
+Qualcomm Camera Subsystem (platform:ac01000.camss):
+	/dev/media0
+	/dev/video0

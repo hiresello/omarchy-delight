@@ -72,3 +72,4 @@ Record each run here (✅ works, ⚠️ works with caveats, ❌ fails, — not t
 | Instant Hotspot | Android, iPhone | — | — | not yet measured | — |
 | Proximity lock (1 h false-lock run) | Android, iPhone | — | — | not yet measured | — |
 | Clean uninstall (`pacman -Qe`, `ufw`, `~/.config/hypr`) | — | — | — | not yet measured on hardware; checked in the VM | — |
+| IR face probe (`delight face probe`) | — | ASUS Zenbook A16 UX3607OA | — | not yet measured; fixtures in this repo are synthetic | — |

@@ -1,0 +1,5 @@
+qcom-camss ac01000.camss: camss probe done
+qcom-cci ac15000.cci: probed
+ov02c10 1-0036: ov02c10 sensor probed
+hm1092 0-0024: himax hm1092 probed
+pm8010 3-0010: pm8010 regulators ready

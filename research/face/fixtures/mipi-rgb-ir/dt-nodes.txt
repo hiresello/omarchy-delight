@@ -1,0 +1,4 @@
+soc/cci@ac14000/i2c-bus@0/camera@24 compatible=himax,hm1092
+soc/cci@ac15000 compatible=qcom,cci
+soc/cci@ac15000/i2c-bus@1/camera@36 compatible=ovti,ov02c10
+soc/camss@ac01000 compatible=qcom,camss

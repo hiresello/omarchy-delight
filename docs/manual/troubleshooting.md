@@ -18,6 +18,13 @@ code says what kind of problem it is:
 | 2 | Unsupported hardware or compositor | Nothing to fix; the tile says **Unsupported** with the reason |
 | 3 | Needs you | Do the step it prints (pair a phone, plug in a device, approve a prompt) |
 
+## IR face login
+
+`delight face probe` only describes the cameras this boot is exposing. Read
+[Face probe](face-probe.md) before treating a verdict as a hardware result.
+It does not set up Howdy or PAM. A `nothing` or `incomplete` verdict is not
+proof that the Zenbook A16 has no IR camera.
+
 ## Common problems
 
 - **A tile is missing from the Control Center.** Only installed modules have

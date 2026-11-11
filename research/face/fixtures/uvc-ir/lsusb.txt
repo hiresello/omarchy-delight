@@ -1,0 +1,3 @@
+Bus 001 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+Bus 002 Device 004: ID 1234:5678 Example Vendor Integrated IR Camera
+probe-canary user=juanprobe SerialNumber: ASUS123456789 mac aa:bb:cc:dd:ee:ff dotted aabb.ccdd.eeff dashed aa-bb-cc-dd-ee-ff
