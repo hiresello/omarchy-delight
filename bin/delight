@@ -25,6 +25,7 @@ Usage: delight <command>
   notify <id> <title> <body>        send a notification
   refresh                           regenerate Hyprland, menu and hook files
   dev new-module <id>               scaffold modules/<id> from templates/module
+  face probe [--output FILE]       read-only IR face-login inventory (docs/manual/face-probe.md)
 USAGE
 }
 
@@ -168,6 +169,20 @@ main() {
       ;;
     hook) cmd_hook "$@" ;;
     dev) cmd_dev "$@" ;;
+    face)
+      # probe is the research inventory. Every other verb belongs to the face module.
+      if [[ ${1:-} == probe ]]; then
+        shift
+        exec "$DELIGHT_ROOT/research/face/probe.sh" "$@"
+      fi
+      case "${1:-}" in
+        "" | help | -h | --help)
+          printf '%s\n' "probe [--output FILE]   read-only camera inventory (docs/manual/face-probe.md)"
+          ;;
+      esac
+      require_module face
+      exec "$(module_bin face)" "$@"
+      ;;
     "" | help | -h | --help) usage ;;
     *)
       require_module "$cmd"

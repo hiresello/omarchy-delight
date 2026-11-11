@@ -26,6 +26,11 @@ needs sudo. Module installs may call `sudo` through `delight_pkg_add` and
 
 Module ids are fixed: `share phone input airplay sync camera sidecar hotspot face`.
 
+`delight face probe` is a read-only inventory command. It is not a verb of
+the `face` module: it does not install packages, units, or plugins, and it
+is not part of the module verb contract. Implementation:
+`research/face/probe.sh`. Manual: `docs/manual/face-probe.md`.
+
 ## Module layout
 
 ```

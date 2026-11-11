@@ -1,0 +1,3 @@
+Available cameras:
+1: 'Integrated IR Camera' (uvcvideo)
+    Modes: 'YUYV' : 640x480 [30.00 fps]

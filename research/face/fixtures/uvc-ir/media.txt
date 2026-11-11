@@ -1,0 +1,15 @@
+===== media-ctl -d /dev/media0 -p =====
+Media controller API version 6.12.8
+
+Media device information
+------------------------
+driver          uvcvideo
+model           Integrated IR Camera
+serial
+bus info        usb-0000:00:14.0-5
+hw revision     0x100
+driver version  6.12.8
+
+Device topology
+- entity 1: Integrated IR Camera (1 pad, 1 link)
+            type V4L2 subdev subtype Sensor flags 0

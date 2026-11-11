@@ -1,0 +1,3 @@
+Available cameras:
+1: 'ov02c10' (ov02c10)
+    Modes: 'SBGGR10_CSI2P' : 1280x720 [30.00 fps]

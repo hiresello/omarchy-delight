@@ -41,6 +41,7 @@ delight <id> toggle                   # or click its tile in the Control Center
 delight status --json
 delight doctor
 delight ui summon delight.control-center
+delight face probe                    # read-only IR face-login inventory
 ```
 
 ## Layout
@@ -55,7 +56,7 @@ delight ui summon delight.control-center
 | `qml/Delight/` | Shared QML tokens and components |
 | `plugins/control-center/` | The Control Center shell plugin |
 | `tests/`, `ci/` | Tests and CI scripts |
-| `vm/`, `research/` | VM harness and research notes (separate tracks) |
+| `vm/`, `research/` | VM harness and research notes (separate tracks). `research/face/` is the read-only `delight face probe` inventory |
 | `kernel/a16-camera/` | Zenbook A16 camera kernel recipe (bring-up, not Continuity Camera) |
 
 Read [`docs/contracts.md`](docs/contracts.md) before writing a module, and

@@ -16,6 +16,7 @@ Tests run against a copy of the repo with a throwaway `$HOME` and
 |---|---|
 | `tests/unit/lib.sh` | `lib/delight` helpers: config, state, packages, firewall, units, status, marked blocks, dry-run |
 | `tests/unit/ownership.sh` | `ci/check-ownership.sh` |
+| `tests/unit/face-probe.sh` | `delight face probe` verdicts from synthetic camera logs (not hardware) |
 | `tests/contract/modules.sh` | Runs `tests/contract/check-module` on every module, on `templates/module` copied unchanged to `modules/example`, and on a `delight dev new-module` scaffold |
 | `tests/install/install.sh` | `install.sh` / `uninstall.sh`: dry-run, idempotence, touchpoints, byte-for-byte restore |
 | `modules/<id>/tests/*.sh` | A module's own tests (owned by its track) |

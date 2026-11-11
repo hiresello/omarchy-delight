@@ -6,6 +6,7 @@
   [Continuity Camera](camera.md), [Sidecar](sidecar.md),
   [Instant Hotspot](hotspot.md)
 - [Troubleshooting with `delight doctor`](troubleshooting.md)
+- [IR face-login inventory (`delight face probe`)](face-probe.md)
 - [Hardware checklist and compatibility table](hw-checklist.md)
 
 Each feature page is a short user guide. The module README it links to has

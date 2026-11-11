@@ -4,6 +4,8 @@
 
 ### Added
 
+- **Face probe:** `delight face probe` writes one redacted camera inventory and a plain-language verdict for the A16 IR login decision tree. It does not capture frames, toggle an illuminator, or change kernel, PAM, or Howdy. Not yet run on A16 hardware; see `docs/manual/face-probe.md`.
+
 - **Control Center:** a macOS-style Now Playing card with previous, play/pause and next, for any module whose status has the new optional `media` field. The iPhone shows its music there; the iPhone tile names the connected phone.
 
 ### Changed
