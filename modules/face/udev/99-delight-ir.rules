@@ -1,0 +1,4 @@
+# Stable Howdy Next path for the Delight IR loopback only.
+# The HM1092 itself is not a V4L2 capture node; this symlink appears when the
+# bridge creates the named loopback device.
+SUBSYSTEM=="video4linux", ATTR{name}=="Delight IR", SYMLINK+="v4l/by-id/delight-ir", TAG+="uaccess"

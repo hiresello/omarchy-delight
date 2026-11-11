@@ -1,0 +1,2 @@
+Available cameras:
+1: 'HM1092' (/base/soc/cci0/HM1092@24)

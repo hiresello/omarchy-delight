@@ -10,6 +10,8 @@ check() {
 }
 
 ok "non-track branches are unrestricted" check devin/x '[]' lib/delight/core.sh
+ok "face owns its module" check track/face '[]' modules/face/module.json modules/face/README.md
+not_ok "face may not change the camera module" check track/face '[]' modules/camera/module.json
 ok "track may change its own module" check track/airplay '[]' modules/airplay/module.json modules/airplay/bin/delight-airplay
 not_ok "track may not change another module" check track/airplay '[]' modules/share/module.json
 not_ok "track may not change shared code" check track/airplay '[]' lib/delight/core.sh

@@ -1,0 +1,14 @@
+[Unit]
+Description=Omarchy Delight on-demand IR face bridge
+Documentation=https://github.com/hiresello/omarchy-delight
+# Socket-activated for one capture. This unit is not enabled at boot.
+
+[Service]
+Type=simple
+ExecStart="@ROOT@/modules/face/bin/delight-face" bridge
+StandardInput=socket
+StandardOutput=socket
+StandardError=journal
+RuntimeMaxSec=300
+Restart=no
+Nice=10

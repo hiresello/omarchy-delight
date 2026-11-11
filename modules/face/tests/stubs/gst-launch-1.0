@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# Stand-in for gst-launch-1.0. Records argv and sleeps until killed.
+
+set -euo pipefail
+
+printf '%s\n' "$*" >>"${DELIGHT_FACE_GST_LOG:?}"
+if [[ -n ${DELIGHT_FACE_GST_PIDS:-} ]]; then
+  printf '%s\n' "$$" >>"$DELIGHT_FACE_GST_PIDS"
+fi
+exec sleep "${DELIGHT_FACE_STUB_SLEEP:-30}"
