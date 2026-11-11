@@ -1,0 +1,60 @@
+#!/bin/bash
+# One-command face-auth disable and PAM rollback. Safe to run twice.
+# Does not need the delight CLI. From a text console:
+#   sudo /usr/local/sbin/delight-face-auth-disable
+# If this file is gone, restore /etc/pam.d from
+# /var/lib/omarchy-delight/face-auth/backup using the manifest next to it.
+# create: delete the path. replace: copy the backup back. See
+# docs/face-auth-threat-model.md for the full break-glass procedure.
+set -u
+root=${FACE_AUTH_ROOT:-}
+base="$root/var/lib/omarchy-delight/face-auth"
+manifest="$base/manifest"
+
+log() {
+  if command -v logger >/dev/null 2>&1; then
+    logger -t delight-face-auth -- "$*" || true
+  fi
+  printf 'delight-face-auth: %s\n' "$*" >&2
+}
+
+if [[ ! -f $manifest ]]; then
+  log "already disabled (no manifest)"
+  exit 0
+fi
+
+version=$(head -n 1 -- "$manifest" || true)
+if [[ $version != v1 ]]; then
+  log "refusing unknown manifest version"
+  exit 1
+fi
+
+while IFS=$'\t' read -r path action backup || [[ -n ${path:-} ]]; do
+  [[ -n ${path:-} ]] || continue
+  [[ $path == \#* || $path == v1 ]] && continue
+  dest="$root$path"
+  case "$action" in
+    create)
+      rm -f -- "$dest"
+      ;;
+    replace)
+      if [[ ! -f $base/backup/$backup ]]; then
+        log "missing backup for $path"
+        exit 1
+      fi
+      cp -f -- "$base/backup/$backup" "$dest"
+      ;;
+    *)
+      log "bad manifest action for $path"
+      exit 1
+      ;;
+  esac
+done <"$manifest"
+
+rm -f -- "$manifest"
+rm -f -- \
+  "$root/usr/local/lib/omarchy-delight/face-auth-gate" \
+  "$root/usr/local/lib/omarchy-delight/face-auth-stamp" \
+  "$root/usr/lib/systemd/system-sleep/omarchy-delight-face-auth"
+log "face auth disabled; PAM restored"
+exit 0

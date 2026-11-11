@@ -24,7 +24,12 @@ command prefix or the `omarchy.*` plugin namespace, and `install.sh` never
 needs sudo. Module installs may call `sudo` through `delight_pkg_add` and
 `delight_ufw_allow` only.
 
-Module ids are fixed: `share phone input airplay sync camera sidecar hotspot`.
+Module ids are fixed: `share phone input airplay sync camera sidecar hotspot face-auth`.
+
+`face-auth` is on that list. Its `install` and `enable` verbs never edit
+`/etc/pam.d`. Installing the PAM stack is a separate root command,
+`delight face-auth apply`, and it only writes the hyprlock service and, when
+the policy says so, sudo. See `docs/face-auth-threat-model.md`.
 
 ## Module layout
 

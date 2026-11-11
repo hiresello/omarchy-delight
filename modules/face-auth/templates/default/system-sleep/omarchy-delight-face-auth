@@ -1,0 +1,49 @@
+#!/bin/bash
+# systemd-sleep hook. Exits 0 even on failure so it cannot block suspend.
+# suspend_max_seconds=0. 0 means every suspend, hibernate, or
+# hybrid-sleep requires a password afterwards. Do not edit.
+root=${FACE_AUTH_ROOT:-}
+state="$root/run/omarchy-delight/face-auth"
+limit=0
+phase=${1:-}
+kind=${2:-}
+
+mark() {
+  umask 077
+  mkdir -p -- "$state" || return 1
+  chmod 0700 -- "$state" || return 1
+  : >"$state/require-password" || return 1
+  chmod 0600 -- "$state/require-password" || return 1
+}
+
+case "$phase" in
+  pre)
+    umask 077
+    mkdir -p -- "$state" || exit 0
+    chmod 0700 -- "$state" || exit 0
+    date +%s >"$state/suspend-start" || rm -f -- "$state/password-ok"
+    exit 0
+    ;;
+  post) ;;
+  *) exit 0 ;;
+esac
+
+case "$kind" in
+  suspend | hibernate | hybrid-sleep) ;;
+  *) exit 0 ;;
+esac
+
+if ((limit == 0)); then
+  mark || rm -f -- "$state/password-ok"
+  exit 0
+fi
+
+now=$(date +%s) || {
+  mark || rm -f -- "$state/password-ok"
+  exit 0
+}
+start=$(cat -- "$state/suspend-start" 2>/dev/null || true)
+if [[ ! $start =~ ^[0-9]+$ ]] || ((now < start)) || ((now - start > limit)); then
+  mark || rm -f -- "$state/password-ok"
+fi
+exit 0

@@ -1,0 +1,46 @@
+#!/bin/bash
+# Exit 0 only when face may be attempted. Any doubt exits 1 so PAM skips Howdy.
+# sudo_cache_seconds=300 (ignored for hyprlock). Do not edit.
+set -u
+root=${FACE_AUTH_ROOT:-}
+state="$root/run/omarchy-delight/face-auth"
+service=${1:-}
+cache=300
+
+log() {
+  if command -v logger >/dev/null 2>&1; then
+    logger -t delight-face-auth -- "$*" || true
+  fi
+}
+
+deny() {
+  log "deny service=${service} reason=$1"
+  exit 1
+}
+
+case "$service" in
+  hyprlock | sudo) ;;
+  *) deny "service" ;;
+esac
+
+if [[ -L $state/password-ok ]]; then
+  deny "password-stamp-symlink"
+fi
+if [[ ! -f $state/password-ok ]]; then
+  deny "no-password-since-boot"
+fi
+if [[ -e $state/require-password ]]; then
+  deny "suspend-or-policy"
+fi
+
+if [[ $service == sudo ]]; then
+  now=$(date +%s) || deny "clock"
+  mtime=$(stat -c %Y -- "$state/password-ok") || deny "password-stamp-unreadable"
+  age=$((now - mtime))
+  if ((age < 0 || age > cache)); then
+    deny "sudo-cache"
+  fi
+fi
+
+log "allow service=${service}"
+exit 0
