@@ -1,0 +1,23 @@
+# Source: https://lore.kernel.org/all/20261030-pm8010_i2c_support-v3-1-995ed1ec7a72@oss.qualcomm.com/
+# Author: Jishnu Prakash <jishnu.prakash@oss.qualcomm.com>
+# Subject: [PATCH v3 1/7] dt-bindings: mfd: pm8008: Add qcom,pm8010-i2c compatible
+# Date: 30 Oct 2026
+# Review: posted by Jishnu Prakash. Christian Cortner Tested-by on the cover for UX3607OA: PM8010 at 0x08 on i2c5, no interrupt in DT, probe, LDO4 and LDO7 power the front OV02C10 at 720p30. He did not publish voltages.
+# Apply: verbatim on linux-7.3.
+
+diff --git a/Documentation/devicetree/bindings/mfd/qcom,pm8008.yaml b/Documentation/devicetree/bindings/mfd/qcom,pm8008.yaml
+index 0c6e1870db1d..2701aa755f31 100644
+--- a/Documentation/devicetree/bindings/mfd/qcom,pm8008.yaml
++++ b/Documentation/devicetree/bindings/mfd/qcom,pm8008.yaml
+@@ -16,7 +16,9 @@ description: |
+ 
+ properties:
+   compatible:
+-    const: qcom,pm8008
++    enum:
++      - qcom,pm8008
++      - qcom,pm8010-i2c
+ 
+   reg:
+     maxItems: 1
+

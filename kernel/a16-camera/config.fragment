@@ -1,0 +1,11 @@
+# Modules the A16 camera stack needs. Merge into the kernel config
+# after the series is applied (build.sh config does this).
+# OV08X40 is the Glymur CRD sensor from DTS v2 patch 6, not an A16 sensor.
+CONFIG_PHY_QCOM_MIPI_CSI2=m
+CONFIG_VIDEO_QCOM_CAMSS=m
+CONFIG_I2C_QCOM_CCI=m
+CONFIG_MFD_QCOM_PM8008=m
+CONFIG_REGULATOR_QCOM_PM8008=m
+CONFIG_VIDEO_OV02C10=m
+CONFIG_VIDEO_HM1092=m
+CONFIG_CLK_GLYMUR_CAMCC=m

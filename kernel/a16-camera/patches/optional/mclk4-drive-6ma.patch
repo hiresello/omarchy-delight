@@ -1,0 +1,16 @@
+# Local, off by default. Not posted as a patch by Jesse Casco.
+# Source of the measurement: https://lore.kernel.org/all/20261110221232.3883-1-jesse.casco@gmail.com/
+# Jesse Casco, 10 Nov 2026, reply to Glymur DTS v2 patch 3, on one UX3607OA: OV02C10 on MCLK4 at 19.2 MHz shows horizontal banding and about a 9% longer frame period when drive-strength is 2 and the internal DMIC clock (LPASS LPI GPIO6, 2.4 MHz) is running. The bands are in the RAW10 frames and the sensor test pattern is clean. Changing only this pin to 6 mA fixed it, A/B/A across three boots.
+# This override is on the A16 board file, not in glymur.dtsi, so other Glymur boards keep the posted 2 mA. build.sh applies it only when APPLY_MCLK4_6MA=1, and only after the A16 board patch.
+
+diff --git a/arch/arm64/boot/dts/qcom/glymur-asus-zenbook-a16-ux3607oa.dts b/arch/arm64/boot/dts/qcom/glymur-asus-zenbook-a16-ux3607oa.dts
+--- a/arch/arm64/boot/dts/qcom/glymur-asus-zenbook-a16-ux3607oa.dts
++++ b/arch/arm64/boot/dts/qcom/glymur-asus-zenbook-a16-ux3607oa.dts
+@@ -1440,3 +1440,7 @@
+ 	data-lanes = <1 2>;
+ 	remote-endpoint = <&ov02c10_out_ep>;
+ };
++
++&cam_mclk4_default {
++	drive-strength = <6>;
++};

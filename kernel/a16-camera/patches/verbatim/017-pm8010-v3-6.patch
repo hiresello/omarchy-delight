@@ -1,0 +1,34 @@
+# Source: https://lore.kernel.org/all/20261030-pm8010_i2c_support-v3-6-995ed1ec7a72@oss.qualcomm.com/
+# Author: Jishnu Prakash <jishnu.prakash@oss.qualcomm.com>
+# Subject: [PATCH v3 6/7] dt-bindings: mfd: pm8008: Make interrupts optional
+# Date: 30 Oct 2026
+# Review: posted by Jishnu Prakash. Christian Cortner Tested-by on the cover for UX3607OA: PM8010 at 0x08 on i2c5, no interrupt in DT, probe, LDO4 and LDO7 power the front OV02C10 at 720p30. He did not publish voltages.
+# Apply: verbatim on linux-7.3.
+
+diff --git a/Documentation/devicetree/bindings/mfd/qcom,pm8008.yaml b/Documentation/devicetree/bindings/mfd/qcom,pm8008.yaml
+index 2701aa755f31..3c0febc8152b 100644
+--- a/Documentation/devicetree/bindings/mfd/qcom,pm8008.yaml
++++ b/Documentation/devicetree/bindings/mfd/qcom,pm8008.yaml
+@@ -90,7 +90,6 @@ properties:
+ required:
+   - compatible
+   - reg
+-  - interrupts
+   - vdd-l1-l2-supply
+   - vdd-l3-l4-supply
+   - vdd-l5-supply
+@@ -99,10 +98,11 @@ required:
+   - gpio-controller
+   - "#gpio-cells"
+   - gpio-ranges
+-  - interrupt-controller
+-  - "#interrupt-cells"
+   - "#thermal-sensor-cells"
+ 
++dependencies:
++  interrupt-controller: [ interrupts, "#interrupt-cells" ]
++
+ additionalProperties: false
+ 
+ examples:
+

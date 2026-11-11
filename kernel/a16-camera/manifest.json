@@ -1,0 +1,378 @@
+{
+  "checked": "2026-11-11",
+  "base": {
+    "name": "linux-7.3",
+    "tarball": "https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-7.3.tar.xz",
+    "tarball_sha256": "87363c24f10e06321eb362765521094e94471f6bff8bce2d6b3e40f39f004953",
+    "omarchy_package": "linux-omarchy-aarch64 7.3-48",
+    "omarchy_note": "The Omarchy aarch64 package uses this tarball and then a large local patch stack, including A16 EC, Wi-Fi, and battery patches and other Glymur dts edits. This recipe was applied to the vanilla tarball only. It was not applied on top of that stack."
+  },
+  "build": {
+    "host": "x86_64 cloud VM",
+    "compiler": "aarch64-linux-gnu-gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+    "compiled": [
+      "drivers/media/i2c/hm1092.o",
+      "drivers/mfd/qcom-pm8008.o",
+      "drivers/regulator/qcom-pm8008-regulator.o",
+      "drivers/phy/qualcomm/phy-qcom-mipi-csi2-core.o",
+      "drivers/phy/qualcomm/phy-qcom-mipi-csi2-3ph-dphy.o",
+      "drivers/media/platform/qcom/camss/camss.o",
+      "arch/arm64/boot/dts/qcom/glymur-asus-zenbook-a16-ux3607oa.dtb"
+    ],
+    "not_compiled": [
+      "arch/arm64/boot/Image",
+      "modules_install",
+      "UKI",
+      "makepkg",
+      "boot on UX3607OA",
+      "apply on top of the linux-omarchy-aarch64 7.3-48 patch stack"
+    ]
+  },
+  "patches": [
+    {
+      "file": "patches/verbatim/001-csi2-phy-v17-1-binding.patch",
+      "source_url": "https://lore.kernel.org/all/20260903-x1e-csi2-phy-v17-1-26606fa9a039@linaro.org/",
+      "author": "Bryan O'Donoghue <bryan.odonoghue@linaro.org>",
+      "version": "v17",
+      "subject": "[PATCH v17 1/2] dt-bindings: phy: qcom: Add CSI2 C-PHY/DPHY schema",
+      "review_status": "Under review. Not in the Linux 7.3 tag checked on 11 Nov 2026. Krzysztof Kozlowski asked whether a fixed clock-lanes property is redundant. Loic Poulain said some sashiko-bot comments look well-founded.",
+      "apply": "verbatim on linux-7.3",
+      "hardware_status": "No A16 hardware claim of its own."
+    },
+    {
+      "file": "patches/verbatim/002-csi2-phy-v17-2-driver.patch",
+      "source_url": "https://lore.kernel.org/all/20260903-x1e-csi2-phy-v17-2-26606fa9a039@linaro.org/",
+      "author": "Bryan O'Donoghue <bryan.odonoghue@linaro.org>",
+      "version": "v17",
+      "subject": "[PATCH v17 2/2] phy: qcom-mipi-csi2: Add a CSI2 MIPI DPHY driver",
+      "review_status": "Under review. Not in the Linux 7.3 tag checked on 11 Nov 2026. Prerequisite of the Glymur CAMSS binding. A later C-PHY follow-up is not included; the A16 RGB link is D-PHY.",
+      "apply": "verbatim on linux-7.3",
+      "hardware_status": "No A16 hardware claim of its own."
+    },
+    {
+      "file": "patches/verbatim/003-phy-get-v20-1.patch",
+      "source_url": "https://lore.kernel.org/all/20260918-b4-linux-next-25-03-13-dtsi-x1e80100-camss-v20-1-dc244e124e71@linaro.org/",
+      "author": "Bryan O'Donoghue <bryan.odonoghue@linaro.org>",
+      "version": "v20",
+      "subject": "[PATCH v20 1/6] phy: core: Fix race-condition between _of_phy_get() and try_module_get()",
+      "review_status": "Under review. Not in the Linux 7.3 tag checked on 11 Nov 2026. Vinod Koul replied '(subset)' on the cover for the phy-core portion. Those commits are not in v7.3. Patches 5 and 6 are the CAMSS standalone-PHY API this recipe needs, because v7.3 CAMSS still ioremaps CSIPHY by name and the Glymur DTS describes standalone PHY nodes.",
+      "apply": "verbatim on linux-7.3",
+      "hardware_status": "Required for the Glymur DT shape. Not an A16-specific test."
+    },
+    {
+      "file": "patches/verbatim/004-phy-get-v20-2.patch",
+      "source_url": "https://lore.kernel.org/all/20260918-b4-linux-next-25-03-13-dtsi-x1e80100-camss-v20-2-dc244e124e71@linaro.org/",
+      "author": "Bryan O'Donoghue <bryan.odonoghue@linaro.org>",
+      "version": "v20",
+      "subject": "[PATCH v20 2/6] phy: core: Add phy_get_by_of_node()",
+      "review_status": "Under review. Not in the Linux 7.3 tag checked on 11 Nov 2026. Vinod Koul replied '(subset)' on the cover for the phy-core portion. Those commits are not in v7.3. Patches 5 and 6 are the CAMSS standalone-PHY API this recipe needs, because v7.3 CAMSS still ioremaps CSIPHY by name and the Glymur DTS describes standalone PHY nodes.",
+      "apply": "verbatim on linux-7.3",
+      "hardware_status": "Required for the Glymur DT shape. Not an A16-specific test."
+    },
+    {
+      "file": "patches/verbatim/005-phy-get-v20-3.patch",
+      "source_url": "https://lore.kernel.org/all/20260918-b4-linux-next-25-03-13-dtsi-x1e80100-camss-v20-3-dc244e124e71@linaro.org/",
+      "author": "Bryan O'Donoghue <bryan.odonoghue@linaro.org>",
+      "version": "v20",
+      "subject": "[PATCH v20 3/6] phy: core: Add devm_phy_get_by_of_node()",
+      "review_status": "Under review. Not in the Linux 7.3 tag checked on 11 Nov 2026. Vinod Koul replied '(subset)' on the cover for the phy-core portion. Those commits are not in v7.3. Patches 5 and 6 are the CAMSS standalone-PHY API this recipe needs, because v7.3 CAMSS still ioremaps CSIPHY by name and the Glymur DTS describes standalone PHY nodes.",
+      "apply": "verbatim on linux-7.3",
+      "hardware_status": "Required for the Glymur DT shape. Not an A16-specific test."
+    },
+    {
+      "file": "patches/verbatim/006-phy-get-v20-4.patch",
+      "source_url": "https://lore.kernel.org/all/20260918-b4-linux-next-25-03-13-dtsi-x1e80100-camss-v20-4-dc244e124e71@linaro.org/",
+      "author": "Bryan O'Donoghue <bryan.odonoghue@linaro.org>",
+      "version": "v20",
+      "subject": "[PATCH v20 4/6] phy: core: Add missing kerneldoc colon in two locations",
+      "review_status": "Under review. Not in the Linux 7.3 tag checked on 11 Nov 2026. Vinod Koul replied '(subset)' on the cover for the phy-core portion. Those commits are not in v7.3. Patches 5 and 6 are the CAMSS standalone-PHY API this recipe needs, because v7.3 CAMSS still ioremaps CSIPHY by name and the Glymur DTS describes standalone PHY nodes.",
+      "apply": "verbatim on linux-7.3",
+      "hardware_status": "Required for the Glymur DT shape. Not an A16-specific test."
+    },
+    {
+      "file": "patches/verbatim/007-phy-get-v20-5.patch",
+      "source_url": "https://lore.kernel.org/all/20260918-b4-linux-next-25-03-13-dtsi-x1e80100-camss-v20-5-dc244e124e71@linaro.org/",
+      "author": "Bryan O'Donoghue <bryan.odonoghue@linaro.org>",
+      "version": "v20",
+      "subject": "[PATCH v20 5/6] media: qcom: camss: Add support for PHY API devices",
+      "review_status": "Under review. Not in the Linux 7.3 tag checked on 11 Nov 2026. Vinod Koul replied '(subset)' on the cover for the phy-core portion. Those commits are not in v7.3. Patches 5 and 6 are the CAMSS standalone-PHY API this recipe needs, because v7.3 CAMSS still ioremaps CSIPHY by name and the Glymur DTS describes standalone PHY nodes.",
+      "apply": "verbatim on linux-7.3",
+      "hardware_status": "Required for the Glymur DT shape. Not an A16-specific test."
+    },
+    {
+      "file": "patches/verbatim/008-phy-get-v20-6.patch",
+      "source_url": "https://lore.kernel.org/all/20260918-b4-linux-next-25-03-13-dtsi-x1e80100-camss-v20-6-dc244e124e71@linaro.org/",
+      "author": "Bryan O'Donoghue <bryan.odonoghue@linaro.org>",
+      "version": "v20",
+      "subject": "[PATCH v20 6/6] media: qcom: camss: Use data-lanes starting at 1 for new CSIPHY mode",
+      "review_status": "Under review. Not in the Linux 7.3 tag checked on 11 Nov 2026. Vinod Koul replied '(subset)' on the cover for the phy-core portion. Those commits are not in v7.3. Patches 5 and 6 are the CAMSS standalone-PHY API this recipe needs, because v7.3 CAMSS still ioremaps CSIPHY by name and the Glymur DTS describes standalone PHY nodes.",
+      "apply": "verbatim on linux-7.3",
+      "hardware_status": "Required for the Glymur DT shape. Not an A16-specific test."
+    },
+    {
+      "file": "patches/verbatim/009-camss-glymur-v4-1.patch",
+      "source_url": "https://lore.kernel.org/all/20260925-glymur_camss-v4-1-d7c2983d6d7b@oss.qualcomm.com/",
+      "author": "Nihal Kumar Gupta <nihal.gupta@oss.qualcomm.com>",
+      "version": "v4",
+      "subject": "[PATCH v4 1/3] dt-bindings: phy: qcom,x1e80100-csi2-phy: Add Glymur compatible",
+      "review_status": "Posted 25 Sep 2026, base-commit 4c253ac4b29b8c6cc6fdef8f92d4facde62e63b9. The v4 cover says Krzysztof Kozlowski's Reviewed-by was collected and that the series was rebased on linux-next 20260924. The saved v4 mailbox has sashiko-bot comments and the author's replies. Not in the Linux 7.3 tag. The 15 Oct DTS cover says the bindings and driver had been merged into linux-next; that statement is about linux-next, and these files are absent from v7.3. Glymur matches x1e80100_resources. The cover says the 3-vs-4 CSIPHY difference lives in DT.",
+      "apply": "verbatim on linux-7.3",
+      "hardware_status": "SoC enablement. Cortner's A16 stream used this stack together with an unpublished board node."
+    },
+    {
+      "file": "patches/verbatim/010-camss-glymur-v4-2.patch",
+      "source_url": "https://lore.kernel.org/all/20260925-glymur_camss-v4-2-d7c2983d6d7b@oss.qualcomm.com/",
+      "author": "Nihal Kumar Gupta <nihal.gupta@oss.qualcomm.com>",
+      "version": "v4",
+      "subject": "[PATCH v4 2/3] dt-bindings: media: qcom,glymur-camss: Add Glymur CAMSS",
+      "review_status": "Posted 25 Sep 2026, base-commit 4c253ac4b29b8c6cc6fdef8f92d4facde62e63b9. The v4 cover says Krzysztof Kozlowski's Reviewed-by was collected and that the series was rebased on linux-next 20260924. The saved v4 mailbox has sashiko-bot comments and the author's replies. Not in the Linux 7.3 tag. The 15 Oct DTS cover says the bindings and driver had been merged into linux-next; that statement is about linux-next, and these files are absent from v7.3. Glymur matches x1e80100_resources. The cover says the 3-vs-4 CSIPHY difference lives in DT.",
+      "apply": "verbatim on linux-7.3",
+      "hardware_status": "SoC enablement. Cortner's A16 stream used this stack together with an unpublished board node."
+    },
+    {
+      "file": "patches/verbatim/011-camss-glymur-v4-3.patch",
+      "source_url": "https://lore.kernel.org/all/20260925-glymur_camss-v4-3-d7c2983d6d7b@oss.qualcomm.com/",
+      "author": "Nihal Kumar Gupta <nihal.gupta@oss.qualcomm.com>",
+      "version": "v4",
+      "subject": "[PATCH v4 3/3] media: qcom: camss: Add Glymur compatible",
+      "review_status": "Posted 25 Sep 2026, base-commit 4c253ac4b29b8c6cc6fdef8f92d4facde62e63b9. The v4 cover says Krzysztof Kozlowski's Reviewed-by was collected and that the series was rebased on linux-next 20260924. The saved v4 mailbox has sashiko-bot comments and the author's replies. Not in the Linux 7.3 tag. The 15 Oct DTS cover says the bindings and driver had been merged into linux-next; that statement is about linux-next, and these files are absent from v7.3. Glymur matches x1e80100_resources. The cover says the 3-vs-4 CSIPHY difference lives in DT.",
+      "apply": "verbatim on linux-7.3",
+      "hardware_status": "SoC enablement. Cortner's A16 stream used this stack together with an unpublished board node."
+    },
+    {
+      "file": "patches/verbatim/012-pm8010-v3-1.patch",
+      "source_url": "https://lore.kernel.org/all/20261030-pm8010_i2c_support-v3-1-995ed1ec7a72@oss.qualcomm.com/",
+      "author": "Jishnu Prakash <jishnu.prakash@oss.qualcomm.com>",
+      "version": "v3",
+      "subject": "[PATCH v3 1/7] dt-bindings: mfd: pm8008: Add qcom,pm8010-i2c compatible",
+      "review_status": "Posted 30 Oct 2026 by Jishnu Prakash. Christian Cortner Tested-by on the cover for UX3607OA: PM8010 at 0x08 on i2c5, no interrupt in DT, probe succeeds, LDO4 and LDO7 power the front OV02C10 at 720p30. He did not publish voltages.",
+      "apply": "verbatim on linux-7.3",
+      "hardware_status": "Driver tested on the A16 by Cortner at the bus and address above. Board voltages are not part of this series."
+    },
+    {
+      "file": "patches/verbatim/013-pm8010-v3-2.patch",
+      "source_url": "https://lore.kernel.org/all/20261030-pm8010_i2c_support-v3-2-995ed1ec7a72@oss.qualcomm.com/",
+      "author": "Jishnu Prakash <jishnu.prakash@oss.qualcomm.com>",
+      "version": "v3",
+      "subject": "[PATCH v3 2/7] regulator: pm8008: Add PM8010 support",
+      "review_status": "Posted 30 Oct 2026 by Jishnu Prakash. Christian Cortner Tested-by on the cover for UX3607OA: PM8010 at 0x08 on i2c5, no interrupt in DT, probe succeeds, LDO4 and LDO7 power the front OV02C10 at 720p30. He did not publish voltages.",
+      "apply": "verbatim on linux-7.3",
+      "hardware_status": "Driver tested on the A16 by Cortner at the bus and address above. Board voltages are not part of this series."
+    },
+    {
+      "file": "patches/verbatim/014-pm8010-v3-3.patch",
+      "source_url": "https://lore.kernel.org/all/20261030-pm8010_i2c_support-v3-3-995ed1ec7a72@oss.qualcomm.com/",
+      "author": "Jishnu Prakash <jishnu.prakash@oss.qualcomm.com>",
+      "version": "v3",
+      "subject": "[PATCH v3 3/7] regulator: pm8008: Add mode voting support for PM8010",
+      "review_status": "Posted 30 Oct 2026 by Jishnu Prakash. Christian Cortner Tested-by on the cover for UX3607OA: PM8010 at 0x08 on i2c5, no interrupt in DT, probe succeeds, LDO4 and LDO7 power the front OV02C10 at 720p30. He did not publish voltages. Konrad Dybcio asked this patch to grow get_optimum_mode the way qcom-rpmh-regulator does. Jishnu agreed on 9 Nov 2026 to do that in a version that is not in the mailbox. v3 is carried as posted.",
+      "apply": "verbatim on linux-7.3",
+      "hardware_status": "Driver tested on the A16 by Cortner at the bus and address above. Board voltages are not part of this series."
+    },
+    {
+      "file": "patches/verbatim/015-pm8010-v3-4.patch",
+      "source_url": "https://lore.kernel.org/all/20261030-pm8010_i2c_support-v3-4-995ed1ec7a72@oss.qualcomm.com/",
+      "author": "Jishnu Prakash <jishnu.prakash@oss.qualcomm.com>",
+      "version": "v3",
+      "subject": "[PATCH v3 4/7] mfd: qcom-pm8008: Drop GPIO support",
+      "review_status": "Posted 30 Oct 2026 by Jishnu Prakash. Christian Cortner Tested-by on the cover for UX3607OA: PM8010 at 0x08 on i2c5, no interrupt in DT, probe succeeds, LDO4 and LDO7 power the front OV02C10 at 720p30. He did not publish voltages.",
+      "apply": "verbatim on linux-7.3",
+      "hardware_status": "Driver tested on the A16 by Cortner at the bus and address above. Board voltages are not part of this series."
+    },
+    {
+      "file": "patches/verbatim/016-pm8010-v3-5.patch",
+      "source_url": "https://lore.kernel.org/all/20261030-pm8010_i2c_support-v3-5-995ed1ec7a72@oss.qualcomm.com/",
+      "author": "Jishnu Prakash <jishnu.prakash@oss.qualcomm.com>",
+      "version": "v3",
+      "subject": "[PATCH v3 5/7] mfd: qcom-pm8008: Add PM8010 support",
+      "review_status": "Posted 30 Oct 2026 by Jishnu Prakash. Christian Cortner Tested-by on the cover for UX3607OA: PM8010 at 0x08 on i2c5, no interrupt in DT, probe succeeds, LDO4 and LDO7 power the front OV02C10 at 720p30. He did not publish voltages.",
+      "apply": "verbatim on linux-7.3",
+      "hardware_status": "Driver tested on the A16 by Cortner at the bus and address above. Board voltages are not part of this series."
+    },
+    {
+      "file": "patches/verbatim/017-pm8010-v3-6.patch",
+      "source_url": "https://lore.kernel.org/all/20261030-pm8010_i2c_support-v3-6-995ed1ec7a72@oss.qualcomm.com/",
+      "author": "Jishnu Prakash <jishnu.prakash@oss.qualcomm.com>",
+      "version": "v3",
+      "subject": "[PATCH v3 6/7] dt-bindings: mfd: pm8008: Make interrupts optional",
+      "review_status": "Posted 30 Oct 2026 by Jishnu Prakash. Christian Cortner Tested-by on the cover for UX3607OA: PM8010 at 0x08 on i2c5, no interrupt in DT, probe succeeds, LDO4 and LDO7 power the front OV02C10 at 720p30. He did not publish voltages.",
+      "apply": "verbatim on linux-7.3",
+      "hardware_status": "Driver tested on the A16 by Cortner at the bus and address above. Board voltages are not part of this series."
+    },
+    {
+      "file": "patches/verbatim/018-pm8010-v3-7.patch",
+      "source_url": "https://lore.kernel.org/all/20261030-pm8010_i2c_support-v3-7-995ed1ec7a72@oss.qualcomm.com/",
+      "author": "Jishnu Prakash <jishnu.prakash@oss.qualcomm.com>",
+      "version": "v3",
+      "subject": "[PATCH v3 7/7] mfd: qcom-pm8008: Tolerate missing interrupt",
+      "review_status": "Posted 30 Oct 2026 by Jishnu Prakash. Christian Cortner Tested-by on the cover for UX3607OA: PM8010 at 0x08 on i2c5, no interrupt in DT, probe succeeds, LDO4 and LDO7 power the front OV02C10 at 720p30. He did not publish voltages.",
+      "apply": "verbatim on linux-7.3",
+      "hardware_status": "Driver tested on the A16 by Cortner at the bus and address above. Board voltages are not part of this series."
+    },
+    {
+      "file": "patches/verbatim/019-dts-v2-6-defconfig-ov08x40.patch",
+      "source_url": "https://lore.kernel.org/all/20261015-glymur_camss_dts-v2-6-e7b1f403146f@oss.qualcomm.com/",
+      "author": "Nihal Kumar Gupta <nihal.gupta@oss.qualcomm.com>",
+      "version": "v2",
+      "subject": "[PATCH v2 6/6] arm64: defconfig: Enable OV08X40 camera sensor driver",
+      "review_status": "Part of the Glymur CRD DTS series, 15 Oct 2026. Applies cleanly. OV08X40 is the CRD sensor, not the A16 sensor. The A16 fragment enables OV02C10 and HM1092 separately.",
+      "apply": "verbatim on linux-7.3",
+      "hardware_status": "CRD defconfig line. Not an A16 camera."
+    },
+    {
+      "file": "patches/verbatim/020-hm1092-v8-1-binding.patch",
+      "source_url": "https://lore.kernel.org/all/20261025-hm1092-driver-v8-1-9cd575c366cf@gmail.com/",
+      "author": "Ramshouriesh R <rshouriesh@gmail.com>",
+      "version": "v8",
+      "subject": "[PATCH v8 1/3] media: dt-bindings: Add Himax HM1092 NIR sensor",
+      "review_status": "Under review. Not in the Linux 7.3 tag checked on 11 Nov 2026. Driver tested on the Zenbook A14, not the A16.",
+      "apply": "verbatim on linux-7.3",
+      "hardware_status": "Binding only."
+    },
+    {
+      "file": "patches/verbatim/021-hm1092-v8-2-driver-file.patch",
+      "source_url": "https://lore.kernel.org/all/20261025-hm1092-driver-v8-2-9cd575c366cf@gmail.com/",
+      "author": "Ramshouriesh R <rshouriesh@gmail.com>",
+      "version": "v8",
+      "subject": "[PATCH v8 2/3] media: i2c: hm1092: add Himax HM1092 mono NIR sensor driver (new file only)",
+      "review_status": "Under review. Not in the Linux 7.3 tag checked on 11 Nov 2026. Author rebased onto next-20261012. Tested on the A14: probe, stream, exposure, analogue gain, digital gain while streaming, runtime PM. The posted mail's MAINTAINERS, Kconfig, and Makefile hunks are split out because they expect HM1246, which v7.3 does not have. The C file body is the posted one, with no register edits.",
+      "apply": "new file extracted from the posted patch; context hunks are 022",
+      "hardware_status": "A14, not A16."
+    },
+    {
+      "file": "patches/v73/022-hm1092-v8-kconfig-makefile-maintainers.patch",
+      "source_url": "https://lore.kernel.org/all/20261025-hm1092-driver-v8-2-9cd575c366cf@gmail.com/",
+      "author": "Ramshouriesh R <rshouriesh@gmail.com>",
+      "version": "v8",
+      "subject": "v7.3 context rebase of the Kconfig, Makefile, and MAINTAINERS hunks from HM1092 v8 patch 2",
+      "review_status": "Added lines are the posted text. v7.3 inserts them after HI847 / before IMX111, and in MAINTAINERS before HIMAX HX83112B, because HM1246 is not in v7.3. No registers, clocks, or GPIOs.",
+      "apply": "v7.3 context rebase",
+      "hardware_status": "Build wiring only."
+    },
+    {
+      "file": "patches/verbatim/023-hm1092-v8-3-acpi.patch",
+      "source_url": "https://lore.kernel.org/all/20261025-hm1092-driver-v8-3-9cd575c366cf@gmail.com/",
+      "author": "Ramshouriesh R <rshouriesh@gmail.com>",
+      "version": "v8",
+      "subject": "[PATCH v8 3/3] media: i2c: hm1092: Add ACPI enumeration and the 19.2 MHz configuration",
+      "review_status": "Under review. Not in the Linux 7.3 tag checked on 11 Nov 2026. Jake Steinman's ACPI 19.2 MHz mode for Intel/Dell boards. Kept so the file matches v8. The A16 should use the 24 MHz Qualcomm mode. The ipu-bridge HM1092 commit 4fdb0342f05e is Intel-only and is not carried.",
+      "apply": "verbatim on linux-7.3 after the driver file exists",
+      "hardware_status": "Intel/Dell mode. Not the A16 clock."
+    },
+    {
+      "file": "patches/v73/024-hm1092-v7.3-get-selection-args.patch",
+      "source_url": "https://lore.kernel.org/all/20261025-hm1092-driver-v8-0-9cd575c366cf@gmail.com/",
+      "author": "local compile fix; driver author Ramshouriesh R",
+      "version": "v7.3",
+      "subject": "Drop the unused v4l2_subdev_client_info argument from hm1092_get_selection",
+      "review_status": "v8's get_selection takes the extra argument added in next-20261012. Linux 7.3's v4l2_subdev_pad_ops.get_selection is still (sd, state, sel). The parameter is unused. This is the only local edit to the driver C, and it changes no register, mode, or control value.",
+      "apply": "local, required to compile on linux-7.3",
+      "hardware_status": "Compile fix. No hardware claim."
+    },
+    {
+      "file": "patches/v73/025-glymur-dtsi-camss-cci-mclk.patch",
+      "source_url": "https://lore.kernel.org/all/20261015-glymur_camss_dts-v2-0-e7b1f403146f@oss.qualcomm.com/",
+      "author": "Nihal Kumar Gupta <nihal.gupta@oss.qualcomm.com>",
+      "version": "v2",
+      "subject": "v7.3 context rebase of DTS v2 patches 1-3 (CAMSS, CSIPHY, CCI, MCLK)",
+      "review_status": "Konrad Dybcio Acked-by on patch 1. Christian Cortner Tested-by for patches 1-3 on UX3607OA with an ov02c10 node he described as CRD wiring and did not post. Konrad asked not to add A16 nodes to this series. Posted patch 1 does not apply safely: its CAMSS hunk context is two lines and git apply inserted the node after usb_mp. Posted patch 2 fails because sdc2_default_state is absent from v7.3. Added properties are copied from the lore diffs. Opp tables stay immediately before soc@0. CAMSS sits between evacc and dispcc. CCI and MCLK pinctrl sit inside &tlmm after qup_uart22_default. drive-strength stays 2.",
+      "apply": "v7.3 context rebase of patches 1-3; patches 4 and 5 are not applied",
+      "hardware_status": "Cortner Tested-by for the SoC nodes plus an unpublished A16 ov02c10 node. Jesse Casco measured MCLK4 at 2 mA banding; the 6 mA change is the optional patch, not this file."
+    },
+    {
+      "file": "patches/v73/026-a16-board-camera-nodes.patch",
+      "source_url": "https://github.com/FixItFoundry/zenbook-a16-linux/blob/main/patches/stable/0108-arm64-dts-a16-rgb-ir.patch",
+      "author": "FixItFoundry zenbook-a16-linux, patch 0108; not upstream",
+      "version": "out-of-tree",
+      "subject": "A16 OV02C10 and HM1092 nodes, PM8010 regulators, reset pinctrl",
+      "review_status": "Not upstream. The posted file is not a git patch and does not apply on v7.3. Nodes were inserted at v7.3 anchors: PM8010 on &i2c5 before ptn3222_1, reset pinctrl before the existing LED pinctrl nodes, sensor nodes appended once. No address, GPIO, voltage, clock, or lane was edited. 0108 says PM8010 input rails remain firmware-managed until their supply mapping is verified. Both sensors' leds property points at the white privacy LED on TLMM 111, which is not an IR illuminator. build.sh skips this patch when APPLY_A16_BOARD=0.",
+      "apply": "v7.3 context placement of 0108; skipped when APPLY_A16_BOARD=0",
+      "hardware_status": "RGB bus cci1_i2c1, address 0x36, CSIPHY4 and 2 lanes match Cortner's public report. Reset TLMM 239, the 2.8 V and 1.8 V numbers, HM1092 on cci0_i2c0 at 0x24, reset TLMM 109, and LDO3 are unverified on the A16. IR illuminator is absent on purpose."
+    }
+  ],
+  "not_applied": [
+    {
+      "file": "patches/not-applied/dts-v2-1-camss-csiphy.patch",
+      "source_url": "https://lore.kernel.org/all/20261015-glymur_camss_dts-v2-1-e7b1f403146f@oss.qualcomm.com/",
+      "author": "Nihal Kumar Gupta <nihal.gupta@oss.qualcomm.com>",
+      "version": "v2",
+      "subject": "[PATCH v2 1/6] arm64: dts: qcom: glymur: Add CAMSS and CSIPHY nodes",
+      "review_status": "Not applied as posted. git apply on v7.3 mis-places the CAMSS node because the hunk context is two lines. The added lines are carried in 025. Konrad Acked-by.",
+      "apply": "not applied; replaced by 025",
+      "hardware_status": "See 025."
+    },
+    {
+      "file": "patches/not-applied/dts-v2-2-cci.patch",
+      "source_url": "https://lore.kernel.org/all/20261015-glymur_camss_dts-v2-2-e7b1f403146f@oss.qualcomm.com/",
+      "author": "Nihal Kumar Gupta <nihal.gupta@oss.qualcomm.com>",
+      "version": "v2",
+      "subject": "[PATCH v2 2/6] arm64: dts: qcom: glymur: Add CCI definitions",
+      "review_status": "Not applied as posted. git apply fails: the pinctrl hunk anchors on sdc2_default_state, which v7.3 glymur.dtsi does not have. Carried in 025.",
+      "apply": "not applied; replaced by 025",
+      "hardware_status": "See 025."
+    },
+    {
+      "file": "patches/not-applied/dts-v2-3-mclk.patch",
+      "source_url": "https://lore.kernel.org/all/20261015-glymur_camss_dts-v2-3-e7b1f403146f@oss.qualcomm.com/",
+      "author": "Nihal Kumar Gupta <nihal.gupta@oss.qualcomm.com>",
+      "version": "v2",
+      "subject": "[PATCH v2 3/6] arm64: dts: qcom: glymur: Add camera MCLK pinctrl",
+      "review_status": "Not applied as posted. Depends on the pinctrl anchor from patch 2. Pin properties, including drive-strength 2, are carried in 025. Jesse Casco's 6 mA measurement is the optional patch.",
+      "apply": "not applied; replaced by 025",
+      "hardware_status": "Posted 2 mA is what 025 keeps."
+    },
+    {
+      "file": "patches/not-applied/dts-v2-4-crd-pm8010.patch",
+      "source_url": "https://lore.kernel.org/all/20261015-glymur_camss_dts-v2-4-e7b1f403146f@oss.qualcomm.com/",
+      "author": "Cover credits Jishnu Prakash; mailed by Nihal Kumar Gupta",
+      "version": "v2",
+      "subject": "[PATCH v2 4/6] arm64: dts: qcom: glymur-crd: Add PM8010 camera PMIC",
+      "review_status": "Not applied. git apply fails: v7.3 glymur-crd.dtsi has no sdc2_card_det_n. Konrad asked for property order and for LDO1/LDO2 to be 1.104 V rather than 1.2 V. Jishnu agreed to a next version that is not in the mailbox. Those voltages were not invented here. This is the CRD board, not the A16.",
+      "apply": "not applied",
+      "hardware_status": "CRD only. Not the A16."
+    },
+    {
+      "file": "patches/not-applied/dts-v2-5-crd-ov08x40.patch",
+      "source_url": "https://lore.kernel.org/all/20261015-glymur_camss_dts-v2-5-e7b1f403146f@oss.qualcomm.com/",
+      "author": "Nihal Kumar Gupta <nihal.gupta@oss.qualcomm.com>",
+      "version": "v2",
+      "subject": "[PATCH v2 5/6] arm64: dts: qcom: glymur-crd: Add ov08x40 RGB sensor on CSIPHY4",
+      "review_status": "Not applied. The diff applies onto v7.3 glymur-crd.dtsi and then references vreg_l7p and vreg_l4p, which only patch 4 creates. Konrad Reviewed-by. CRD OV08X40, not the A16 OV02C10.",
+      "apply": "not applied",
+      "hardware_status": "CRD only. Not the A16."
+    },
+    {
+      "file": "patches/not-applied/hm1092-v8-2-driver-as-posted.patch",
+      "source_url": "https://lore.kernel.org/all/20261025-hm1092-driver-v8-2-9cd575c366cf@gmail.com/",
+      "author": "Ramshouriesh R <rshouriesh@gmail.com>",
+      "version": "v8",
+      "subject": "[PATCH v8 2/3] media: i2c: hm1092: add Himax HM1092 mono NIR sensor driver",
+      "review_status": "Not applied as a single patch. The MAINTAINERS, Kconfig, and Makefile hunks expect HIMAX HM1246, which is not in v7.3. The new C file is 021 and the context hunks are 022.",
+      "apply": "not applied; split into 021 and 022",
+      "hardware_status": "A14 test. Not A16."
+    }
+  ],
+  "optional": [
+    {
+      "file": "patches/optional/mclk4-drive-6ma.patch",
+      "source_url": "https://lore.kernel.org/all/20261110221232.3883-1-jesse.casco@gmail.com/",
+      "author": "local override from Jesse Casco's measurement; he did not post a patch",
+      "version": "local",
+      "subject": "A16-only cam_mclk4 drive-strength 6",
+      "review_status": "Off by default (APPLY_MCLK4_6MA=1). Jesse Casco, 10 Nov 2026, on one UX3607OA: with drive-strength 2, OV02C10 on MCLK4 at 19.2 MHz shows horizontal banding and about a 9% longer frame period while the internal DMIC clock (LPASS LPI GPIO6, 2.4 MHz) runs. The bands are in the RAW10 frames and the sensor test pattern is clean. 6 mA on this pin fixed it, A/B/A across three boots. The override is on the A16 board file so other Glymur boards keep the posted 2 mA. It is not applied to glymur.dtsi.",
+      "apply": "optional, off by default; requires the A16 board patch",
+      "hardware_status": "Measured on one A16. Not upstream."
+    }
+  ],
+  "omitted_on_purpose": [
+    "FixItFoundry 0027 PMH0104 camera LDOs",
+    "FixItFoundry 0100-0102, a rebase of DTS v1 onto their tree",
+    "FixItFoundry 0103 and 0109 CCI clock tweaks",
+    "FixItFoundry 0104 and 0105, a local PM8010 superseded here by upstream v3",
+    "FixItFoundry 0106, their HM1092 snapshot superseded here by v8",
+    "FixItFoundry 0107, a local limit of Glymur CAMSS to CSID0/VFE0; may matter if probe fails, not applied blindly",
+    "IR illuminator. No source gives the A16 rail or GPIO. The A14 PM8550 channel was not copied.",
+    "ipu-bridge HM1092 commit 4fdb0342f05e, Intel-only",
+    "Howdy / Howdy Next"
+  ]
+}

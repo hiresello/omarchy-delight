@@ -1,0 +1,28 @@
+# Applied in order onto linux-7.3. Paths are relative to this directory.
+# A trailing "board" tag is the unverified A16 sensor node (APPLY_A16_BOARD=0 skips it).
+patches/verbatim/001-csi2-phy-v17-1-binding.patch
+patches/verbatim/002-csi2-phy-v17-2-driver.patch
+patches/verbatim/003-phy-get-v20-1.patch
+patches/verbatim/004-phy-get-v20-2.patch
+patches/verbatim/005-phy-get-v20-3.patch
+patches/verbatim/006-phy-get-v20-4.patch
+patches/verbatim/007-phy-get-v20-5.patch
+patches/verbatim/008-phy-get-v20-6.patch
+patches/verbatim/009-camss-glymur-v4-1.patch
+patches/verbatim/010-camss-glymur-v4-2.patch
+patches/verbatim/011-camss-glymur-v4-3.patch
+patches/verbatim/012-pm8010-v3-1.patch
+patches/verbatim/013-pm8010-v3-2.patch
+patches/verbatim/014-pm8010-v3-3.patch
+patches/verbatim/015-pm8010-v3-4.patch
+patches/verbatim/016-pm8010-v3-5.patch
+patches/verbatim/017-pm8010-v3-6.patch
+patches/verbatim/018-pm8010-v3-7.patch
+patches/verbatim/019-dts-v2-6-defconfig-ov08x40.patch
+patches/verbatim/020-hm1092-v8-1-binding.patch
+patches/verbatim/021-hm1092-v8-2-driver-file.patch
+patches/v73/022-hm1092-v8-kconfig-makefile-maintainers.patch
+patches/verbatim/023-hm1092-v8-3-acpi.patch
+patches/v73/024-hm1092-v7.3-get-selection-args.patch
+patches/v73/025-glymur-dtsi-camss-cci-mclk.patch
+patches/v73/026-a16-board-camera-nodes.patch board

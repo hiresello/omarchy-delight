@@ -1,0 +1,43 @@
+# Maintainer: Omarchy Delight A16 camera bring-up
+# Side package. This is not linux-omarchy and it does not provide linux.
+# Run makepkg from this directory so build.sh and the patches stay next to it.
+# Default build is the objects and dtb that were cross-compiled in CI.
+# A16_FULL_BUILD=1 makepkg builds Image, dtbs, and modules. That was not run.
+
+pkgbase=linux-a16-camera
+pkgname=(linux-a16-camera)
+pkgver=7.3
+pkgrel=1
+pkgdesc='Bring-up kernel pieces for the ASUS Zenbook A16 cameras. Not a daily driver.'
+arch=(aarch64)
+url='https://github.com/hiresello/omarchy-delight'
+license=(GPL-2.0-only)
+makedepends=(bc bison flex libelf openssl python git)
+options=(!strip)
+source=("https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-${pkgver}.tar.xz")
+sha256sums=('87363c24f10e06321eb362765521094e94471f6bff8bce2d6b3e40f39f004953')
+
+prepare() {
+  "$startdir/build.sh" apply "$srcdir/linux-$pkgver"
+}
+
+build() {
+  export A16_FULL_BUILD="${A16_FULL_BUILD:-0}"
+  "$startdir/build.sh" compile "$srcdir/linux-$pkgver"
+}
+
+package() {
+  cd "$srcdir/linux-$pkgver"
+  local release modulesdir dtb
+  release=$(<include/config/kernel.release)
+  modulesdir="$pkgdir/usr/lib/modules/$release"
+  dtb=arch/arm64/boot/dts/qcom/glymur-asus-zenbook-a16-ux3607oa.dtb
+  install -Dm644 "$dtb" "$modulesdir/dtb/qcom/$(basename "$dtb")"
+  if [[ -f arch/arm64/boot/Image ]]; then
+    make ARCH=arm64 INSTALL_MOD_PATH="$pkgdir/usr" INSTALL_MOD_STRIP=1 modules_install
+    install -Dm644 arch/arm64/boot/Image "$modulesdir/vmlinuz"
+    install -Dm644 System.map "$modulesdir/System.map"
+    rm -f "$modulesdir"/{source,build}
+  fi
+  install -Dm644 "$startdir/README.md" "$pkgdir/usr/share/doc/linux-a16-camera/README.md"
+}
