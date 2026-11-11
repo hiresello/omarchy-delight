@@ -602,7 +602,15 @@ face_hold_socket() {
 }
 
 face_hold() {
-  local sock
+  local sock runtime
+  # arm records this shell, not the setsid wrapper. setsid forks when it is
+  # already a process-group leader, and $! is then the wrapper that exits.
+  if [[ ${DELIGHT_FACE_ARM:-0} == 1 ]]; then
+    runtime=$(face_user_runtime)
+    mkdir -p -- "$runtime"
+    printf '%s\n' "$$" >"$runtime/arm.pid"
+    trap 'exit 143' TERM INT HUP
+  fi
   sock=$(face_socket_path)
   if [[ ${DELIGHT_FACE_DIRECT:-0} != 1 && -S $sock ]]; then
     if command -v nc >/dev/null 2>&1; then
@@ -623,15 +631,42 @@ module_hold() {
   face_hold "$@"
 }
 
+# Signal pid and its children. Process-group kill is not enough: a setsid
+# wrapper can be a different pid from the hold shell, and some bash builds
+# do not treat `kill -pgid` as a fallback for the pid itself.
+face_kill_tree() {
+  local pid=$1 sig=$2 child
+  local -a children=()
+  [[ $pid =~ ^[0-9]+$ ]] || return 0
+  if command -v ps >/dev/null 2>&1; then
+    while IFS= read -r child; do
+      [[ $child =~ ^[0-9]+$ ]] || continue
+      children+=("$child")
+    done < <(ps -o pid= --ppid "$pid" 2>/dev/null || true)
+  fi
+  for child in "${children[@]+"${children[@]}"}"; do
+    face_kill_tree "$child" "$sig"
+  done
+  kill -s "$sig" -- "$pid" 2>/dev/null || true
+}
+
+face_stop_pid() {
+  local pid=$1 i
+  [[ $pid =~ ^[0-9]+$ ]] || return 0
+  face_kill_tree "$pid" TERM
+  for ((i = 0; i < 20; i++)); do
+    kill -0 "$pid" 2>/dev/null || return 0
+    sleep 0.05
+  done
+  face_kill_tree "$pid" KILL
+}
+
 face_stop_processes() {
   local pidfile pid
   for pidfile in "$(face_user_runtime)/arm.pid" "$(face_user_runtime)/gst.pid" "$(face_system_runtime)/gst.pid"; do
     [[ -f $pidfile ]] || continue
     pid=$(cat -- "$pidfile" 2>/dev/null || true)
-    if [[ $pid =~ ^[0-9]+$ ]]; then
-      # arm is a process-group leader when setsid is available.
-      kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
-    fi
+    face_stop_pid "$pid"
     rm -f -- "$pidfile"
   done
   rm -f -- "$(face_ready_file)"
@@ -651,28 +686,33 @@ module_arm() {
       return 0
     fi
   fi
-  rm -f -- "$(face_ready_file)" "$out" "$err"
+  rm -f -- "$(face_ready_file)" "$out" "$err" "$pidfile"
+  # The hold shell overwrites arm.pid with its own $$.
   if command -v setsid >/dev/null 2>&1; then
-    setsid "$DELIGHT_FACE_BIN" hold -- sleep "$(face_max_seconds)" >"$out" 2>"$err" &
+    DELIGHT_FACE_ARM=1 setsid "$DELIGHT_FACE_BIN" hold -- sleep "$(face_max_seconds)" >"$out" 2>"$err" &
   else
-    "$DELIGHT_FACE_BIN" hold -- sleep "$(face_max_seconds)" >"$out" 2>"$err" &
+    DELIGHT_FACE_ARM=1 "$DELIGHT_FACE_BIN" hold -- sleep "$(face_max_seconds)" >"$out" 2>"$err" &
   fi
-  pid=$!
-  printf '%s\n' "$pid" >"$pidfile"
   ready=$(face_ready_file)
   for ((i = 0; i < $(face_max_seconds) * 10; i++)); do
     if [[ -s $ready ]]; then
       cat -- "$ready"
       return 0
     fi
-    if ! kill -0 "$pid" 2>/dev/null; then
-      cat -- "$err" >&2 || true
-      rm -f -- "$pidfile"
-      return 1
+    if [[ -s $pidfile ]]; then
+      pid=$(cat -- "$pidfile" 2>/dev/null || true)
+      if [[ $pid =~ ^[0-9]+$ ]] && ! kill -0 "$pid" 2>/dev/null; then
+        cat -- "$err" >&2 || true
+        rm -f -- "$pidfile"
+        return 1
+      fi
     fi
     sleep 0.1
   done
-  kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
+  if [[ -s $pidfile ]]; then
+    pid=$(cat -- "$pidfile" 2>/dev/null || true)
+    face_stop_pid "$pid"
+  fi
   rm -f -- "$pidfile"
   face_stream_error "the bridge did not become ready. Real HM1092 output is unverified."
   return 1

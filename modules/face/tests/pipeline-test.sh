@@ -78,15 +78,19 @@ is "arm returns the Howdy device path" "$armed" "/dev/v4l/by-id/delight-ir"
 ok "arm started the grey pipeline" test -s "$DELIGHT_FACE_GST_LOG"
 arm_pid=$(cat -- "$XDG_RUNTIME_DIR/omarchy-delight/face/arm.pid")
 ok "arm recorded a pid" test -n "$arm_pid"
+ok "arm is still streaming after it returns" kill -0 "$arm_pid"
 "$BIN" stop
 stopped=1
-for _ in 1 2 3 4 5 6 7 8 9 10; do
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
   if ! kill -0 "$arm_pid" 2>/dev/null; then
     stopped=0
     break
   fi
   sleep 0.1
 done
+if [[ $stopped != 0 ]]; then
+  ps -p "$arm_pid" -o pid,ppid,stat,cmd >&2 || true
+fi
 is "stop ends the armed capture" "$stopped" "0"
 ok "stop ended the gstreamer stand-in" gst_stopped
 not_ok "stop clears the ready file" test -f "$XDG_RUNTIME_DIR/omarchy-delight/face/ready"
