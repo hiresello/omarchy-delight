@@ -14,6 +14,7 @@ One directory per feature module, created from the template with
 | `camera` | Continuity Camera |
 | `sidecar` | Sidecar (tablet as a second display) |
 | `hotspot` | Instant Hotspot and proximity |
+| `face` | On-demand IR camera bridge for Howdy Next (HM1092 output unverified) |
 
 Modules talk to each other only through the JSON CLI contracts in
 `docs/contracts.md`, never by sourcing each other's files.

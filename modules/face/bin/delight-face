@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# IR face bridge. See modules/face/README.md.
+# Override any verb by defining module_<verb>. self-test is wrapped below
+# because a function name cannot contain a hyphen.
+
+set -euo pipefail
+
+DELIGHT_ROOT=$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../../.." && pwd)
+# shellcheck source=../../../lib/delight/delight.sh
+source "$DELIGHT_ROOT/lib/delight/delight.sh"
+
+DELIGHT_MODULE_ID=$(basename -- "${BASH_SOURCE[0]}")
+DELIGHT_MODULE_ID=${DELIGHT_MODULE_ID#delight-}
+
+# shellcheck source=../lib/face.sh
+source "$DELIGHT_ROOT/modules/face/lib/face.sh"
+
+if [[ ${1:-} == "self-test" ]]; then
+  shift
+  module_self_test "$@"
+else
+  delight_module_main "$@"
+fi

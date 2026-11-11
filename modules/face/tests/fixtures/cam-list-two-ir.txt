@@ -1,0 +1,4 @@
+Available cameras
+-----------------
+0 : hm1092 (/base/soc/cci0/hm1092@24) [560x360]
+1 : hm1092 (/base/soc/cci1/hm1092@25) [560x360]

@@ -16,7 +16,8 @@ jobs:
       - name: Install tools
         run: |
           pacman -Syu --noconfirm --needed bash jq git shellcheck shfmt qt6-declarative quickshell \
-            python python-jsonschema util-linux diffutils findutils sudo rust pkgconf dbus
+            python python-jsonschema util-linux diffutils findutils sudo rust pkgconf dbus \
+            gstreamer gst-plugins-base
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0

@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# The test sysfs tree is the only "module is loadable" signal.
+exit 1

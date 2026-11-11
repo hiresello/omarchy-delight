@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# Records argv and creates or deletes only a Delight IR sysfs node.
+
+set -euo pipefail
+
+printf '%s\n' "v4l2loopback-ctl $*" >>"${DELIGHT_STUB_LOG:?}"
+sysfs=${DELIGHT_SYSFS:-/sys}
+label=${DELIGHT_FACE_DEVICE_NAME:-Delight IR}
+
+case "${1:-}" in
+  add)
+    shift
+    while (($# > 0)); do
+      case "$1" in
+        -n)
+          label=$2
+          shift 2
+          ;;
+        *) shift ;;
+      esac
+    done
+    mkdir -p -- "$sysfs/devices/virtual/video4linux/video11"
+    printf '%s\n' "$label" >"$sysfs/devices/virtual/video4linux/video11/name"
+    ;;
+  delete)
+    dev=${2:-}
+    base=${dev##*/}
+    dir="$sysfs/devices/virtual/video4linux/$base"
+    current=""
+    [[ -f $dir/name ]] && IFS= read -r current <"$dir/name"
+    if [[ $current == "$label" ]]; then
+      rm -rf -- "$dir"
+    else
+      printf '%s\n' "refusing to delete $dev" >>"$DELIGHT_STUB_LOG"
+      exit 1
+    fi
+    ;;
+  list) ;;
+  *) ;;
+esac
+exit 0

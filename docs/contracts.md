@@ -24,7 +24,7 @@ command prefix or the `omarchy.*` plugin namespace, and `install.sh` never
 needs sudo. Module installs may call `sudo` through `delight_pkg_add` and
 `delight_ufw_allow` only.
 
-Module ids are fixed: `share phone input airplay sync camera sidecar hotspot`.
+Module ids are fixed: `share phone input airplay sync camera sidecar hotspot face`.
 
 ## Module layout
 

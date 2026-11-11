@@ -14,7 +14,7 @@ DELIGHT_UNIT_DIR="$HOME/.config/systemd/user"
 DELIGHT_PLUGIN_DIR="$HOME/.config/omarchy/plugins"
 DELIGHT_MODULES_DIR="$DELIGHT_ROOT/modules"
 DELIGHT_PRIVATE_CIDRS=(10.0.0.0/8 172.16.0.0/12 192.168.0.0/16)
-DELIGHT_MODULE_IDS=(share phone input airplay sync camera sidecar hotspot)
+DELIGHT_MODULE_IDS=(share phone input airplay sync camera sidecar hotspot face)
 
 delight_log() {
   printf 'delight: %s\n' "$*" >&2

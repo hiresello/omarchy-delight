@@ -1,0 +1,14 @@
+[Unit]
+Description=Arm the on-demand IR face bridge
+Documentation=https://github.com/hiresello/omarchy-delight
+PartOf=delight.target
+After=delight.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=%h/.local/bin/delight face _listen
+ExecStop=%h/.local/bin/delight face _unlisten
+
+[Install]
+WantedBy=delight.target

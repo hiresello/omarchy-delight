@@ -1,0 +1,7 @@
+{
+  "enabled": false,
+  "sensor": "hm1092",
+  "deviceName": "Delight IR",
+  "devicePath": "/dev/v4l/by-id/delight-ir",
+  "maxSeconds": 30
+}
