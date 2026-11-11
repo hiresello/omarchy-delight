@@ -41,11 +41,14 @@ export DELIGHT_FACE_STUB_SLEEP=30
 : >"$DELIGHT_FACE_GST_PIDS"
 
 gst_stopped() {
-  local pid alive=0
+  local pid state alive=0
   [[ -s $DELIGHT_FACE_GST_PIDS ]] || return 1
-  while IFS= read -r pid || [[ -n $pid ]]; do
-    [[ -n $pid ]] || continue
-    if kill -0 "$pid" 2>/dev/null; then
+  while read -r pid || [[ -n $pid ]]; do
+    [[ $pid =~ ^[0-9]+$ ]] || continue
+    [[ -r /proc/$pid/stat ]] || continue
+    state=$(sed -n 's/.*) //p' "/proc/$pid/stat" 2>/dev/null || true)
+    state=${state%% *}
+    if [[ -n $state && $state != Z ]]; then
       alive=1
     fi
   done <"$DELIGHT_FACE_GST_PIDS"
@@ -78,11 +81,22 @@ is "arm returns the Howdy device path" "$armed" "/dev/v4l/by-id/delight-ir"
 ok "arm started the grey pipeline" test -s "$DELIGHT_FACE_GST_LOG"
 arm_pid=$(cat -- "$XDG_RUNTIME_DIR/omarchy-delight/face/arm.pid")
 ok "arm recorded a pid" test -n "$arm_pid"
-ok "arm is still streaming after it returns" kill -0 "$arm_pid"
+
+# kill -0 is true for a zombie. The capture has stopped once the process is
+# gone or defunct (CI's PID 1 does not reap orphans).
+capture_running() {
+  local state
+  [[ -r /proc/$arm_pid/stat ]] || return 1
+  state=$(sed -n 's/.*) //p' "/proc/$arm_pid/stat" 2>/dev/null || true)
+  state=${state%% *}
+  [[ -n $state && $state != Z ]]
+}
+
+ok "arm is still streaming after it returns" capture_running
 "$BIN" stop
 stopped=1
 for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
-  if ! kill -0 "$arm_pid" 2>/dev/null; then
+  if ! capture_running; then
     stopped=0
     break
   fi

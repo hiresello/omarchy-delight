@@ -631,6 +631,19 @@ module_hold() {
   face_hold "$@"
 }
 
+# True while the pid is a live process. A zombie is already dead: kill -0
+# still succeeds, and a container PID 1 that never waits leaves it visible.
+face_pid_running() {
+  local pid=$1 state
+  [[ $pid =~ ^[0-9]+$ ]] || return 1
+  [[ -r /proc/$pid/stat ]] || return 1
+  # comm is wrapped in parentheses and may contain spaces. The state is the
+  # first field after the closing parenthesis.
+  state=$(sed -n 's/.*) //p' "/proc/$pid/stat" 2>/dev/null || true)
+  state=${state%% *}
+  [[ -n $state && $state != Z ]]
+}
+
 # Signal pid and its children. Process-group kill is not enough: a setsid
 # wrapper can be a different pid from the hold shell, and some bash builds
 # do not treat `kill -pgid` as a fallback for the pid itself.
@@ -639,7 +652,9 @@ face_kill_tree() {
   local -a children=()
   [[ $pid =~ ^[0-9]+$ ]] || return 0
   if command -v ps >/dev/null 2>&1; then
-    while IFS= read -r child; do
+    # Default IFS so `read` strips the leading spaces `ps -o pid=` prints.
+    # An empty IFS keeps those spaces and the pid check skips every child.
+    while read -r child; do
       [[ $child =~ ^[0-9]+$ ]] || continue
       children+=("$child")
     done < <(ps -o pid= --ppid "$pid" 2>/dev/null || true)
@@ -652,10 +667,10 @@ face_kill_tree() {
 
 face_stop_pid() {
   local pid=$1 i
-  [[ $pid =~ ^[0-9]+$ ]] || return 0
+  face_pid_running "$pid" || return 0
   face_kill_tree "$pid" TERM
   for ((i = 0; i < 20; i++)); do
-    kill -0 "$pid" 2>/dev/null || return 0
+    face_pid_running "$pid" || return 0
     sleep 0.05
   done
   face_kill_tree "$pid" KILL
@@ -681,7 +696,7 @@ module_arm() {
   mkdir -p -- "$runtime"
   if [[ -f $pidfile ]]; then
     pid=$(cat -- "$pidfile" 2>/dev/null || true)
-    if [[ $pid =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
+    if face_pid_running "$pid"; then
       printf '%s\n' "already streaming"
       return 0
     fi
@@ -701,7 +716,7 @@ module_arm() {
     fi
     if [[ -s $pidfile ]]; then
       pid=$(cat -- "$pidfile" 2>/dev/null || true)
-      if [[ $pid =~ ^[0-9]+$ ]] && ! kill -0 "$pid" 2>/dev/null; then
+      if [[ $pid =~ ^[0-9]+$ ]] && ! face_pid_running "$pid"; then
         cat -- "$err" >&2 || true
         rm -f -- "$pidfile"
         return 1
