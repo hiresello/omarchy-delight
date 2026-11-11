@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "id": "face-auth",
+  "name": "Face Unlock",
+  "icon": "󰛈",
+  "description": "Convenience IR face unlock for the lock screen. Never the only factor, and never Windows Hello.",
+  "packages": { "repo": [], "aur": ["howdy-next"] },
+  "units": [],
+  "firewall": [],
+  "capabilities": ["camera", "hyprland"],
+  "provides": { "shareTargets": false, "devices": false },
+  "plugin": null,
+  "menu": [
+    { "id": "toggle", "label": "Toggle Face Unlock", "icon": "󰛈", "action": "delight face-auth toggle" },
+    { "id": "validate", "label": "Check face-auth policy", "action": "delight face-auth validate" }
+  ]
+}

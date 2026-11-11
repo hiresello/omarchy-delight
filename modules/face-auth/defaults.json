@@ -1,0 +1,15 @@
+{
+  "enabled": false,
+  "schema": 1,
+  "scope": {
+    "hyprlock": true,
+    "sudo": false
+  },
+  "sudo_cache_seconds": 300,
+  "suspend_max_seconds": 0,
+  "deny": 5,
+  "fail_interval": 900,
+  "unlock_time": 600,
+  "allow_unencrypted_models": false,
+  "device_path": ""
+}

@@ -1,0 +1,196 @@
+#!/bin/bash
+
+# Convenience IR face unlock. install/enable never edit /etc/pam.d.
+# Apply is a separate root step and refuses a stack that fails validation.
+
+set -euo pipefail
+
+DELIGHT_ROOT=$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../../.." && pwd)
+# shellcheck source=../../../lib/delight/delight.sh
+source "$DELIGHT_ROOT/lib/delight/delight.sh"
+# shellcheck source=../lib/policy.sh
+source "$DELIGHT_ROOT/modules/face-auth/lib/policy.sh"
+# shellcheck source=../lib/store.sh
+source "$DELIGHT_ROOT/modules/face-auth/lib/store.sh"
+# shellcheck source=../lib/pamcheck.sh
+source "$DELIGHT_ROOT/modules/face-auth/lib/pamcheck.sh"
+# shellcheck source=../lib/render.sh
+source "$DELIGHT_ROOT/modules/face-auth/lib/render.sh"
+# shellcheck source=../lib/apply.sh
+source "$DELIGHT_ROOT/modules/face-auth/lib/apply.sh"
+
+DELIGHT_MODULE_ID=$(basename -- "${BASH_SOURCE[0]}")
+DELIGHT_MODULE_ID=${DELIGHT_MODULE_ID#delight-}
+
+face_auth_usage() {
+  cat <<'USAGE'
+Usage: delight face-auth <verb>
+
+  install | uninstall | enable | disable | toggle | status [--json] | doctor
+  validate              check the policy and the rendered PAM stack
+  apply [--dry-run]     install the stack as root, after validation
+  rollback              restore PAM from the apply-time backup
+
+enable writes templates under ~/.config/omarchy-delight/face-auth and does
+not change /etc/pam.d. Login, polkit, disk unlock, and password managers are
+never given a face module. See docs/face-auth-threat-model.md.
+USAGE
+}
+
+delight_module_usage() {
+  face_auth_usage
+}
+
+face_auth_load_policy() {
+  local overlay='{}' merged defaults
+  defaults="$DELIGHT_ROOT/modules/face-auth/defaults.json"
+  if [[ -f $DELIGHT_CONFIG_FILE ]]; then
+    overlay=$(jq -c '.modules["face-auth"] // {}' "$DELIGHT_CONFIG_FILE")
+  fi
+  merged=$(face_auth_policy_merge "$defaults" "$overlay") || return 1
+  face_auth_policy_normalize <<<"$merged"
+}
+
+face_auth_publish() {
+  local policy stage dest rel
+  policy=$(face_auth_load_policy) || return 1
+  stage=$(mktemp -d)
+  if ! face_auth_render_tree "$policy" "$stage"; then
+    rm -rf -- "$stage"
+    return 1
+  fi
+  dest="$DELIGHT_CONFIG_DIR/face-auth"
+  while IFS= read -r -d '' rel; do
+    rel=${rel#"$stage"/}
+    delight_file_install face-auth "$stage/$rel" "$dest/$rel"
+  done < <(find "$stage" -type f -print0)
+  if [[ ! -f $stage/pam.d/sudo && -f $dest/pam.d/sudo ]]; then
+    rm -f -- "$dest/pam.d/sudo"
+  fi
+  rm -rf -- "$stage"
+}
+
+module_enable() {
+  face_auth_load_policy >/dev/null || delight_die "face-auth policy is not acceptable" 1
+  delight_module_default_enable
+  face_auth_publish
+}
+
+module_disable() {
+  if face_auth_manifest_present; then
+    if [[ -z ${FACE_AUTH_ROOT:-} && $EUID -ne 0 ]]; then
+      delight_module_default_disable
+      delight_die "PAM is still installed. From a text console run: sudo /usr/local/sbin/delight-face-auth-disable" 1
+    fi
+    face_auth_rollback
+  fi
+  delight_module_default_disable
+}
+
+module_uninstall() {
+  if face_auth_manifest_present; then
+    if [[ -z ${FACE_AUTH_ROOT:-} && $EUID -ne 0 ]]; then
+      delight_die "PAM is still installed. Run: sudo /usr/local/sbin/delight-face-auth-disable" 1
+    fi
+    face_auth_rollback
+  fi
+  delight_module_default_uninstall
+}
+
+module_status() {
+  local name icon policy subtitle
+  name=$(delight_module_field face-auth '.name')
+  icon=$(delight_module_field face-auth '.icon')
+  if ! delight_is_installed face-auth; then
+    delight_status_json --id face-auth --state needs-setup --title "$name" \
+      --subtitle "Not installed" --icon "$icon" \
+      --actions '[{"label":"Install","command":["delight","face-auth","install"]}]'
+    return 0
+  fi
+  if ! delight_module_enabled; then
+    delight_status_json --id face-auth --state off --title "$name" --subtitle "Off" --icon "$icon"
+    return 0
+  fi
+  if ! policy=$(face_auth_load_policy 2>/dev/null); then
+    delight_status_json --id face-auth --state error --title "$name" --subtitle "" --icon "$icon" \
+      --reason "policy is not acceptable"
+    return 0
+  fi
+  if face_auth_manifest_present; then
+    subtitle="Lock screen only"
+    [[ $(jq -r '.scope.sudo' <<<"$policy") == true ]] && subtitle="Lock screen and sudo cache"
+    delight_status_json --id face-auth --state on --title "$name" --subtitle "$subtitle" --icon "$icon"
+  else
+    delight_status_json --id face-auth --state needs-setup --title "$name" \
+      --subtitle "PAM not applied" --icon "$icon"
+  fi
+}
+
+module_doctor() {
+  local rc=0 policy root service
+  if ! policy=$(face_auth_load_policy); then
+    echo "policy is not acceptable (delight face-auth validate)"
+    return 1
+  fi
+  delight_module_default_doctor || rc=$?
+  root=${FACE_AUTH_ROOT:-}
+  if ! face_auth_check_encryption "${root:-/}" "${FACE_AUTH_MOUNTS:-/proc/mounts}" \
+    "$(jq -r '.allow_unencrypted_models' <<<"$policy")" >/dev/null; then
+    echo "face templates would not sit on a detected encrypted mount"
+    [[ $rc -eq 0 ]] && rc=1
+  fi
+  if face_auth_manifest_present; then
+    for service in hyprlock sudo; do
+      [[ $(jq -r --arg s "$service" '.scope[$s]' <<<"$policy") == true ]] || continue
+      if [[ ! -f $root/etc/pam.d/$service ]]; then
+        echo "missing installed PAM file for $service"
+        rc=1
+        continue
+      fi
+      if ! face_auth_validate_pam_file "$root/etc/pam.d/$service" "$policy" "$service"; then
+        echo "installed PAM for $service failed validation"
+        rc=1
+      fi
+    done
+  elif [[ $rc -eq 0 ]]; then
+    echo "PAM is not applied. Preview templates, then: sudo delight face-auth apply"
+    rc=3
+  fi
+  return "$rc"
+}
+
+module_validate() {
+  local policy stage rc=0 root service
+  policy=$(face_auth_load_policy) || return 1
+  stage=$(mktemp -d)
+  if ! face_auth_render_tree "$policy" "$stage"; then
+    rc=1
+  fi
+  rm -rf -- "$stage"
+  if face_auth_manifest_present; then
+    root=${FACE_AUTH_ROOT:-}
+    for service in hyprlock sudo; do
+      [[ $(jq -r --arg s "$service" '.scope[$s]' <<<"$policy") == true ]] || continue
+      [[ -f $root/etc/pam.d/$service ]] || {
+        echo "missing $service" >&2
+        rc=1
+        continue
+      }
+      face_auth_validate_pam_file "$root/etc/pam.d/$service" "$policy" "$service" || rc=1
+    done
+  fi
+  return "$rc"
+}
+
+module_apply() {
+  local policy args=()
+  policy=$(face_auth_load_policy) || return 1
+  [[ ${1:-} == --dry-run ]] && args+=(--dry-run)
+  face_auth_apply_policy "$policy" "${FACE_AUTH_MOUNTS:-/proc/mounts}" "${args[@]}"
+}
+
+module_rollback() {
+  face_auth_rollback
+}
+
+delight_module_main "$@"

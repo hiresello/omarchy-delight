@@ -7,6 +7,7 @@
   "camera": ["modules/camera/**"],
   "sidecar": ["modules/sidecar/**"],
   "hotspot": ["modules/hotspot/**"],
+  "face-auth": ["modules/face-auth/**"],
   "ui": ["plugins/control-center/**", "qml/Delight/**", "docs/design.md"],
   "vm": ["vm/**", "docs/vm.md", ".github/workflows/vm.yml"],
   "research": ["research/**"],

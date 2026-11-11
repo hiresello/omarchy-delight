@@ -1,0 +1,17 @@
+#!/bin/bash
+# Record a password success and clear the suspend lockout.
+# The PAM stack calls this only after pam_unix succeeds, never after face.
+set -u
+root=${FACE_AUTH_ROOT:-}
+state="$root/run/omarchy-delight/face-auth"
+service=${1:-password}
+umask 077
+mkdir -p -- "$state" || exit 1
+chmod 0700 -- "$state" || exit 1
+rm -f -- "$state/require-password"
+date -u +%Y-%m-%dT%H:%M:%SZ >"$state/password-ok" || exit 1
+chmod 0600 -- "$state/password-ok" || exit 1
+if command -v logger >/dev/null 2>&1; then
+  logger -t delight-face-auth -- "stamp service=${service} password-ok" || true
+fi
+exit 0

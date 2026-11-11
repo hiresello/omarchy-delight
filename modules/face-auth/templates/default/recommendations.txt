@@ -1,0 +1,24 @@
+Howdy Next recommendations (not installed over /etc/howdy/config.ini).
+Invalid keys are rejected by `howdy config`. Change the camera with
+`sudo howdy config` only after `sudo howdy test` works, and do not enable
+PAM until then.
+
+device_path: <unset>
+Use a stable /dev/v4l/by-path/ or /dev/v4l/by-id/ node. Do not use /dev/videoN.
+This policy rejects any other device_path shape.
+
+Do not lower sface_threshold. The Howdy Next configuration guide says lowering
+it makes matching easier and less strict. Raising it, if recognition is already
+reliable, reduces false accepts. Leave yunet_score_threshold and the CLAHE /
+dark_threshold knobs alone unless `howdy test` cannot see a face; those change
+detection, not the password policy.
+
+Do not enable capture of successful or failed frames if howdy.ini offers it.
+A saved frame is a photo of whoever stood at the camera, stored on disk.
+
+Enrolled templates must be root-owned, mode 0600, in a directory mode 0700,
+with no symlinks. `delight face-auth apply` tightens the known template
+directories when it can. It does not add a second encryption layer. At rest,
+protection is the LUKS volume those directories sit on. Apply refuses to
+install PAM when that mount does not look encrypted, unless
+allow_unencrypted_models is true.
