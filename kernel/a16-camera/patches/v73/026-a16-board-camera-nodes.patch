@@ -1,0 +1,229 @@
+# v7.3 context placement of FixItFoundry 0108. Not upstream.
+# Source of the added lines: https://github.com/FixItFoundry/zenbook-a16-linux/blob/main/patches/stable/0108-arm64-dts-a16-rgb-ir.patch
+# Raw: https://raw.githubusercontent.com/FixItFoundry/zenbook-a16-linux/master/patches/stable/0108-arm64-dts-a16-rgb-ir.patch
+# The posted file is not a git patch (no index lines) and does not apply on v7.3: its context around the generic closing braces does not match. The nodes were inserted at anchors that do exist on v7.3:
+#   leds/common.h include after the existing LED include
+#   privacy_led label on the existing TLMM 111 LED, lines otherwise unchanged
+#   PM8010 pmic@8 on &i2c5 immediately before ptn3222_1 (v7.3 i2c5 is i2c@b94000, redriver@43)
+#   cam_reset0 (gpio109) before cam_indicator_en; cam_reset4 (gpio239) before usb2_dp_hot_plug_detect
+#   &camss sensor nodes appended once at end of file
+# No address, GPIO, voltage, clock or lane was edited. The HM1092 half (cci0_i2c0 at 0x24, reset TLMM 109, PM8010 LDO3 2.8 V and LDO4 1.8 V) is unconfirmed on the A16. The RGB bus, PHY and lane count match Christian Cortner's public report; the reset GPIO and the 2.8 V / 1.8 V numbers are this out-of-tree patch's values, not measurements published by Cortner. Both sensors point leds at the white privacy LED. That is not an IR illuminator. Unknown illuminator wiring is left out on purpose.
+# build.sh applies this unless APPLY_A16_BOARD=0.
+
+diff --git a/arch/arm64/boot/dts/qcom/glymur-asus-zenbook-a16-ux3607oa.dts b/arch/arm64/boot/dts/qcom/glymur-asus-zenbook-a16-ux3607oa.dts
+--- a/arch/arm64/boot/dts/qcom/glymur-asus-zenbook-a16-ux3607oa.dts
++++ b/arch/arm64/boot/dts/qcom/glymur-asus-zenbook-a16-ux3607oa.dts
+@@ -16,6 +16,7 @@
+ #include <dt-bindings/input/gpio-keys.h>
+ #include <dt-bindings/input/input.h>
+ #include <dt-bindings/leds/common.h>
++#include <dt-bindings/media/video-interfaces.h>
+ #include <dt-bindings/pinctrl/qcom,pmic-gpio.h>
+ 
+ /delete-node/ &pmh0104_l_e1;
+@@ -136,7 +137,7 @@
+ 			panic-indicator;
+ 		};
+ 
+-		privacy-led {
++		privacy_led: privacy-led {
+ 			function = LED_FUNCTION_INDICATOR;
+ 			color = <LED_COLOR_ID_WHITE>;
+ 			gpios = <&tlmm 111 GPIO_ACTIVE_HIGH>;
+@@ -621,6 +622,40 @@
+ 
+ 	status = "okay";
+ 
++	pm8010: pmic@8 {
++		compatible = "qcom,pm8010-i2c";
++		reg = <0x8>;
++
++		reset-gpios = <&tlmm 106 GPIO_ACTIVE_LOW>;
++
++
++		/* shortcut: input rails remain firmware-managed until their supply mapping is verified. */
++
++		regulators {
++			/* L1/L2 are unused */
++
++			vreg_l3m: ldo3 {
++				regulator-name = "vreg_l3m";
++				regulator-min-microvolt = <2800000>;
++				regulator-max-microvolt = <2800000>;
++			};
++
++			vreg_l4m: ldo4 {
++				regulator-name = "vreg_l4m";
++				regulator-min-microvolt = <1800000>;
++				regulator-max-microvolt = <1800000>;
++			};
++
++			/* L5/L6 are unused */
++
++			vreg_l7m: ldo7 {
++				regulator-name = "vreg_l7m";
++				regulator-min-microvolt = <2800000>;
++				regulator-max-microvolt = <2800000>;
++			};
++		};
++	};
++
+ 	ptn3222_1: redriver@43 {
+ 		compatible = "nxp,ptn3222";
+ 		reg = <0x43>;
+@@ -1049,6 +1084,13 @@
+ 		bias-disable;
+ 	};
+ 
++	cam_reset0_default: cam-reset0-default-state {
++		pins = "gpio109";
++		function = "gpio";
++		drive-strength = <2>;
++		bias-disable;
++	};
++
+ 	cam_indicator_en: cam-indicator-en-state {
+ 		pins = "gpio111";
+ 		function = "gpio";
+@@ -1076,6 +1118,13 @@
+ 		bias-disable;
+ 	};
+ 
++	cam_reset4_default: cam-reset4-default-state {
++		pins = "gpio239";
++		function = "gpio";
++		drive-strength = <2>;
++		bias-disable;
++	};
++
+ 	usb2_dp_hot_plug_detect: usb2-dp-hot-plug-detect-state {
+ 		pins = "gpio126";
+ 		function = "usb2_dp";
+@@ -1267,3 +1316,127 @@
+ 
+ 	status = "okay";
+ };
++
++&camss {
++	status = "okay";
++};
++
++&camss_csiphy0_inep {
++	data-lanes = <1>;
++};
++
++&camss_csiphy4_inep {
++	data-lanes = <1 2>;
++};
++
++&cci0 {
++	pinctrl-0 = <&cci0_0_default>;
++	pinctrl-1 = <&cci0_0_sleep>;
++
++	status = "okay";
++};
++
++&cci1 {
++	pinctrl-0 = <&cci1_1_default>;
++	pinctrl-1 = <&cci1_1_sleep>;
++
++	status = "okay";
++};
++
++&cci0_i2c0 {
++	camera@24 {
++		compatible = "himax,hm1092";
++		reg = <0x24>;
++
++		reset-gpios = <&tlmm 109 GPIO_ACTIVE_LOW>;
++
++		leds = <&privacy_led>;
++		led-names = "privacy";
++
++		power-domains = <&camcc CAM_CC_TITAN_TOP_GDSC>;
++
++		clocks = <&camcc CAM_CC_MCLK0_CLK>;
++		assigned-clocks = <&camcc CAM_CC_MCLK0_CLK>;
++		assigned-clock-rates = <24000000>;
++
++		orientation = <0>;
++
++		dvdd-supply = <&vreg_l4m>;
++		avdd-supply = <&vreg_l3m>;
++		dovdd-supply = <&vreg_l4m>;
++
++		pinctrl-0 = <&cam_mclk0_default>, <&cam_reset0_default>;
++		pinctrl-names = "default";
++
++		port {
++			hm1092_out_ep: endpoint {
++				data-lanes = <1>;
++				link-frequencies = /bits/ 64 <180000000>;
++				remote-endpoint = <&csiphy0_in_ep>;
++			};
++		};
++	};
++};
++
++&cci1_i2c1 {
++	camera@36 {
++		compatible = "ovti,ov02c10";
++		reg = <0x36>;
++
++		reset-gpios = <&tlmm 239 GPIO_ACTIVE_LOW>;
++
++		leds = <&privacy_led>;
++		led-names = "privacy";
++
++		power-domains = <&camcc CAM_CC_TITAN_TOP_GDSC>;
++
++		clocks = <&camcc CAM_CC_MCLK4_CLK>;
++		assigned-clocks = <&camcc CAM_CC_MCLK4_CLK>;
++		assigned-clock-rates = <19200000>;
++
++		orientation = <0>;
++
++		avdd-supply = <&vreg_l7m>;
++		dovdd-supply = <&vreg_l4m>;
++		dvdd-supply = <&vreg_l4m>;
++
++		pinctrl-0 = <&cam_mclk4_default>, <&cam_reset4_default>;
++		pinctrl-names = "default";
++
++		port {
++			ov02c10_out_ep: endpoint {
++				data-lanes = <1 2>;
++				link-frequencies = /bits/ 64 <400000000>;
++				remote-endpoint = <&csiphy4_in_ep>;
++			};
++		};
++	};
++};
++
++&csiphy0 {
++	vdda-0p9-supply = <&vreg_l1f_e1>;
++	vdda-1p2-supply = <&vreg_l4f_e1>;
++
++	status = "okay";
++};
++
++&csiphy0_in_ep {
++	bus-type = <MEDIA_BUS_TYPE_CSI2_DPHY>;
++	clock-lanes = <0>;
++	data-lanes = <1>;
++	remote-endpoint = <&hm1092_out_ep>;
++};
++
++&csiphy4 {
++	vdda-0p9-supply = <&vreg_l1f_e1>;
++	vdda-1p2-supply = <&vreg_l4f_e1>;
++
++	status = "okay";
++};
++
++&csiphy4_in_ep {
++	bus-type = <MEDIA_BUS_TYPE_CSI2_DPHY>;
++	clock-lanes = <0>;
++	data-lanes = <1 2>;
++	remote-endpoint = <&ov02c10_out_ep>;
++};

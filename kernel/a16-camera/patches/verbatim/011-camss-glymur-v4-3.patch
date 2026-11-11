@@ -1,0 +1,21 @@
+# Source: https://lore.kernel.org/all/20260925-glymur_camss-v4-3-d7c2983d6d7b@oss.qualcomm.com/
+# Author: Nihal Kumar Gupta <nihal.gupta@oss.qualcomm.com>
+# Subject: [PATCH v4 3/3] media: qcom: camss: Add Glymur compatible
+# Date: 25 Sep 2026
+# base-commit: 4c253ac4b29b8c6cc6fdef8f92d4facde62e63b9
+# Review: the v4 cover says Krzysztof Kozlowski's Reviewed-by was collected and that the series was rebased on linux-next 20260924. The saved v4 mailbox has sashiko-bot comments and the author's replies. These files are not in the Linux 7.3 tag. The 15 Oct DTS cover later says the bindings and driver had been merged into linux-next; that is the author's statement about next, not about v7.3.
+# Apply: verbatim on linux-7.3, after CSI2 PHY v17 and phy_get_by_of_node v20. Glymur matches x1e80100_resources. The cover says the 3-vs-4 CSIPHY difference lives in DT.
+
+diff --git a/drivers/media/platform/qcom/camss/camss.c b/drivers/media/platform/qcom/camss/camss.c
+index 23f3cc30a15a5e098162bea98ba69fa636abdefb..9954a99981004590d34c722337bb6510fe759699 100644
+--- a/drivers/media/platform/qcom/camss/camss.c
++++ b/drivers/media/platform/qcom/camss/camss.c
+@@ -5751,6 +5751,7 @@ static const struct of_device_id camss_dt_match[] = {
+ 	{ .compatible = "qcom,sm8550-camss", .data = &sm8550_resources },
+ 	{ .compatible = "qcom,sm8650-camss", .data = &sm8650_resources },
+ 	{ .compatible = "qcom,x1e80100-camss", .data = &x1e80100_resources },
++	{ .compatible = "qcom,glymur-camss", .data = &x1e80100_resources },
+ 	{ }
+ };
+ 
+

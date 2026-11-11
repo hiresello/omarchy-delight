@@ -1,0 +1,15 @@
+# Local compile fix for Linux 7.3. Not an upstream change.
+# v8 was rebased on next-20261012, whose v4l2_subdev_pad_ops.get_selection gained a const struct v4l2_subdev_client_info * argument. Linux 7.3's callback is still (sd, state, sel). The parameter is unused. This drops that one argument so hm1092.c compiles. No register, mode, or control value is changed.
+# Apply after 023-hm1092-v8-3-acpi.patch.
+
+diff --git a/drivers/media/i2c/hm1092.c b/drivers/media/i2c/hm1092.c
+--- a/drivers/media/i2c/hm1092.c
++++ b/drivers/media/i2c/hm1092.c
+@@ -829,7 +829,6 @@
+ }
+ 
+ static int hm1092_get_selection(struct v4l2_subdev *sd,
+-				const struct v4l2_subdev_client_info *ci,
+ 				struct v4l2_subdev_state *state,
+ 				struct v4l2_subdev_selection *sel)
+ {

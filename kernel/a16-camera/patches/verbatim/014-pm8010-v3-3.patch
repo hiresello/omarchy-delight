@@ -1,0 +1,134 @@
+# Source: https://lore.kernel.org/all/20261030-pm8010_i2c_support-v3-3-995ed1ec7a72@oss.qualcomm.com/
+# Author: Jishnu Prakash <jishnu.prakash@oss.qualcomm.com>
+# Subject: [PATCH v3 3/7] regulator: pm8008: Add mode voting support for PM8010
+# Date: 30 Oct 2026
+# Review: posted by Jishnu Prakash. Christian Cortner Tested-by on the cover for UX3607OA: PM8010 at 0x08 on i2c5, no interrupt in DT, probe, LDO4 and LDO7 power the front OV02C10 at 720p30. He did not publish voltages. Konrad Dybcio asked patch 3 to grow get_optimum_mode the way qcom-rpmh-regulator does. Jishnu agreed on 9 Nov 2026 to do that in a version that is not in this mailbox. This recipe carries v3 as posted.
+# Apply: verbatim on linux-7.3.
+
+diff --git a/drivers/regulator/qcom-pm8008-regulator.c b/drivers/regulator/qcom-pm8008-regulator.c
+index b484c0f73eea..3db825e93731 100644
+--- a/drivers/regulator/qcom-pm8008-regulator.c
++++ b/drivers/regulator/qcom-pm8008-regulator.c
+@@ -24,6 +24,11 @@
+ 
+ #define LDO_VSET_LB_REG			0x40
+ 
++#define LDO_MODE_CTL1_REG		0x45
++#define MODE_PRIMARY_MASK		GENMASK(2, 0)
++#define LDO_MODE_NPM			7
++#define LDO_MODE_LPM			4
++
+ #define LDO_ENABLE_REG			0x46
+ #define ENABLE_BIT			BIT(7)
+ 
+@@ -46,6 +51,7 @@ struct pm8008_match_data {
+ 	const bool has_stepper_ctl_reg;
+ 	const struct pm8008_regulator_data *regulator_data;
+ 	const int num_regulators;
++	const struct regulator_ops *ops;
+ };
+ 
+ static const struct linear_range pm8008_nldo_ranges[] = {
+@@ -134,6 +140,57 @@ static int pm8008_regulator_get_voltage_sel(struct regulator_dev *rdev)
+ 	return regulator_map_voltage_linear_range(rdev, uV, INT_MAX);
+ }
+ 
++static int pm8010_regulator_set_mode(struct regulator_dev *rdev, unsigned int mode)
++{
++	struct pm8008_regulator *preg = rdev_get_drvdata(rdev);
++	unsigned int val;
++
++	switch (mode) {
++	case REGULATOR_MODE_NORMAL:
++		val = LDO_MODE_NPM;
++		break;
++	case REGULATOR_MODE_IDLE:
++		val = LDO_MODE_LPM;
++		break;
++	default:
++		return -EINVAL;
++	}
++
++	return regmap_update_bits(preg->regmap, preg->base + LDO_MODE_CTL1_REG,
++				   MODE_PRIMARY_MASK, val);
++}
++
++static unsigned int pm8010_regulator_get_mode(struct regulator_dev *rdev)
++{
++	struct pm8008_regulator *preg = rdev_get_drvdata(rdev);
++	unsigned int val;
++	int ret;
++
++	ret = regmap_read(preg->regmap, preg->base + LDO_MODE_CTL1_REG, &val);
++	if (ret < 0)
++		return REGULATOR_MODE_INVALID;
++
++	switch (val & MODE_PRIMARY_MASK) {
++	case LDO_MODE_NPM:
++		return REGULATOR_MODE_NORMAL;
++	case LDO_MODE_LPM:
++		return REGULATOR_MODE_IDLE;
++	default:
++		return REGULATOR_MODE_INVALID;
++	}
++}
++
++static unsigned int pm8010_regulator_of_map_mode(unsigned int mode)
++{
++	switch (mode) {
++	case REGULATOR_MODE_NORMAL:
++	case REGULATOR_MODE_IDLE:
++		return mode;
++	default:
++		return REGULATOR_MODE_INVALID;
++	}
++}
++
+ static const struct regulator_ops pm8008_regulator_ops = {
+ 	.list_voltage		= regulator_list_voltage_linear_range,
+ 	.set_voltage_sel	= pm8008_regulator_set_voltage_sel,
+@@ -143,6 +200,17 @@ static const struct regulator_ops pm8008_regulator_ops = {
+ 	.is_enabled		= regulator_is_enabled_regmap,
+ };
+ 
++static const struct regulator_ops pm8010_regulator_ops = {
++	.list_voltage		= regulator_list_voltage_linear_range,
++	.set_voltage_sel	= pm8008_regulator_set_voltage_sel,
++	.get_voltage_sel	= pm8008_regulator_get_voltage_sel,
++	.enable			= regulator_enable_regmap,
++	.disable		= regulator_disable_regmap,
++	.is_enabled		= regulator_is_enabled_regmap,
++	.set_mode		= pm8010_regulator_set_mode,
++	.get_mode		= pm8010_regulator_get_mode,
++};
++
+ static int pm8008_regulator_probe(struct platform_device *pdev)
+ {
+ 	const struct pm8008_match_data *match_data;
+@@ -185,7 +253,9 @@ static int pm8008_regulator_probe(struct platform_device *pdev)
+ 		desc->supply_name = data->supply_name;
+ 		desc->of_match = data->name;
+ 		desc->regulators_node = of_match_ptr("regulators");
+-		desc->ops = &pm8008_regulator_ops;
++		desc->ops = match_data->ops;
++		if (desc->ops == &pm8010_regulator_ops)
++			desc->of_map_mode = pm8010_regulator_of_map_mode;
+ 		desc->type = REGULATOR_VOLTAGE;
+ 		desc->owner = THIS_MODULE;
+ 
+@@ -231,12 +301,14 @@ static const struct pm8008_match_data pm8008_data = {
+ 	.has_stepper_ctl_reg = true,
+ 	.regulator_data = pm8008_reg_data,
+ 	.num_regulators = ARRAY_SIZE(pm8008_reg_data),
++	.ops = &pm8008_regulator_ops,
+ };
+ 
+ static const struct pm8008_match_data pm8010_data = {
+ 	.has_stepper_ctl_reg = false,
+ 	.regulator_data = pm8010_reg_data,
+ 	.num_regulators = ARRAY_SIZE(pm8010_reg_data),
++	.ops = &pm8010_regulator_ops,
+ };
+ 
+ static const struct platform_device_id pm8008_regulator_id_table[] = {
+

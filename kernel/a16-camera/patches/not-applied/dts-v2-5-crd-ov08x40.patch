@@ -1,0 +1,94 @@
+# Source: https://lore.kernel.org/all/20261015-glymur_camss_dts-v2-5-e7b1f403146f@oss.qualcomm.com/
+# NOT APPLIED by build.sh.
+# Reason: Not applied. The diff applies onto v7.3 glymur-crd.dtsi, then references vreg_l7p and vreg_l4p which only patch 4 creates. Konrad Reviewed-by. It is the CRD OV08X40 node, not the A16 OV02C10 node.
+
+diff --git a/arch/arm64/boot/dts/qcom/glymur-crd.dtsi b/arch/arm64/boot/dts/qcom/glymur-crd.dtsi
+index ebc8da58a79ed6a77916c70c7fd93ab06e185644..1e3ed597c1294272a53c4a6ecd67da0aa6dba528 100644
+--- a/arch/arm64/boot/dts/qcom/glymur-crd.dtsi
++++ b/arch/arm64/boot/dts/qcom/glymur-crd.dtsi
+@@ -11,6 +11,7 @@
+ #include "smb2370.dtsi"         /* SPMI2: SID-9/10/11            */
+ 
+ #include <dt-bindings/input/gpio-keys.h>
++#include <dt-bindings/media/video-interfaces.h>
+ #include <dt-bindings/pinctrl/qcom,pmic-gpio.h>
+ 
+ / {
+@@ -589,6 +590,62 @@ vreg_l4h_e0_1p2: ldo4 {
+ 	};
+ };
+ 
++&camss {
++	status = "okay";
++};
++
++&camss_csiphy4_inep {
++	data-lanes = <1 2 3 4>;
++};
++
++&cci1 {
++	pinctrl-0 = <&cci1_1_default>;
++	pinctrl-1 = <&cci1_1_sleep>;
++
++	status = "okay";
++};
++
++&cci1_i2c1 {
++	camera@36 {
++		compatible = "ovti,ov08x40";
++		reg = <0x36>;
++
++		reset-gpios = <&tlmm 239 GPIO_ACTIVE_LOW>;
++		pinctrl-0 = <&cam_mclk4_default &cam_reset4_default>;
++		pinctrl-names = "default";
++
++		clocks = <&camcc CAM_CC_MCLK4_CLK>;
++		assigned-clocks = <&camcc CAM_CC_MCLK4_CLK>;
++		assigned-clock-rates = <19200000>;
++
++		avdd-supply = <&vreg_l7p>;
++		dovdd-supply = <&vreg_l4p>;
++		dvdd-supply = <&vreg_l4p>;
++
++		port {
++			ov08x40_out_ep: endpoint {
++				data-lanes = <1 2 3 4>;
++				link-frequencies = /bits/ 64 <400000000>;
++				remote-endpoint = <&csiphy4_in_ep>;
++			};
++		};
++	};
++};
++
++&csiphy4 {
++	vdda-0p9-supply = <&vreg_l1f_e1_0p82>;
++	vdda-1p2-supply = <&vreg_l4f_e1_1p08>;
++
++	status = "okay";
++};
++
++&csiphy4_in_ep {
++	bus-type = <MEDIA_BUS_TYPE_CSI2_DPHY>;
++	clock-lanes = <0>;
++	data-lanes = <1 2 3 4>;
++	remote-endpoint = <&ov08x40_out_ep>;
++};
++
+ &i2c9 {
+ 	clock-frequency = <400000>;
+ 
+@@ -1229,6 +1286,13 @@ wwan_reg_en: wwan-reg-en-state {
+ 		drive-strength = <2>;
+ 		bias-disable;
+ 	};
++
++	cam_reset4_default: cam-reset4-default-state {
++		pins = "gpio239";
++		function = "gpio";
++		drive-strength = <2>;
++		bias-disable;
++	};
+ };
+ 
+ &uart14 {
+

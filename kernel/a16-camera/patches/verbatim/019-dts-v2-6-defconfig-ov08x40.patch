@@ -1,0 +1,20 @@
+# Source: https://lore.kernel.org/all/20261015-glymur_camss_dts-v2-6-e7b1f403146f@oss.qualcomm.com/
+# Author: Nihal Kumar Gupta <nihal.gupta@oss.qualcomm.com>
+# Subject: [PATCH v2 6/6] arm64: defconfig: Enable OV08X40 camera sensor driver
+# Date: 15 Oct 2026
+# Review: part of the Glymur CRD series. OV08X40 is the CRD sensor, not the A16 sensor. Included because it applies cleanly and is patch 6 of that series. The A16 fragment enables OV02C10 and HM1092 separately.
+# Apply: verbatim on linux-7.3.
+
+diff --git a/arch/arm64/configs/defconfig b/arch/arm64/configs/defconfig
+index 7b4985b29b21c440c7912f0a24665bdb7010d9e4..7c0926c8ebcb3138ea965f879476000951dac432 100644
+--- a/arch/arm64/configs/defconfig
++++ b/arch/arm64/configs/defconfig
+@@ -965,6 +965,7 @@ CONFIG_VIDEO_TI_J721E_CSI2RX=m
+ CONFIG_VIDEO_HANTRO=m
+ CONFIG_VIDEO_IMX219=m
+ CONFIG_VIDEO_IMX412=m
++CONFIG_VIDEO_OV08X40=m
+ CONFIG_VIDEO_OV5640=m
+ CONFIG_VIDEO_OV5645=m
+ CONFIG_VIDEO_S5KJN1=m
+

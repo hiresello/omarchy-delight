@@ -4,7 +4,7 @@ Continuity Camera presents an Android phone or iPhone as a named V4L2 webcam
 device, **Continuity Camera**, using DroidCam and v4l2loopback. Browsers, meeting
 apps, and OBS can select that device like any other camera. The module does not
 provide a live preview: continuously decoding and drawing a second video stream
-would add unnecessary CPU and latency.
+would add unnecessary CPU and latency. The Zenbook A16's own sensors are a different problem; the kernel recipe is [`kernel/a16-camera`](../../kernel/a16-camera/README.md).
 
 ## Backends
 

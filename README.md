@@ -56,6 +56,7 @@ delight ui summon delight.control-center
 | `plugins/control-center/` | The Control Center shell plugin |
 | `tests/`, `ci/` | Tests and CI scripts |
 | `vm/`, `research/` | VM harness and research notes (separate tracks) |
+| `kernel/a16-camera/` | Zenbook A16 camera kernel recipe (bring-up, not Continuity Camera) |
 
 Read [`docs/contracts.md`](docs/contracts.md) before writing a module, and
 [`docs/testing.md`](docs/testing.md) for how to test one.
